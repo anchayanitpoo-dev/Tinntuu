@@ -34,7 +34,7 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const [activeTab, setActiveTab] = useState('swipe'); // swipe, schedule, chat, practice, profile
+  const [activeTab, setActiveTab] = useState('swipe'); 
   const [allProfiles, setAllProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   
@@ -45,15 +45,14 @@ export default function App() {
   });
   const [hasProfile, setHasProfile] = useState(false);
 
-  // Chat & Match States
   const [matches, setMatches] = useState([]);
   const [activeChatType, setActiveChatType] = useState('list'); 
   const [currentChatId, setCurrentChatId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [groupRooms, setGroupRooms] = useState([]);
+  const [newRoomName, setNewRoomName] = useState('');
   
-  // Practice & Voice
   const [selectedScenario, setSelectedScenario] = useState('ev_bus');
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [isCalling, setIsCalling] = useState(false);
@@ -69,7 +68,6 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    // Fetch Profiles
     const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), (snapshot) => {
       const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllProfiles(profiles);
@@ -78,12 +76,10 @@ export default function App() {
       else { setHasProfile(false); setActiveTab('profile'); }
     });
 
-    // Fetch Matches
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Fetch Groups
     const unsubGroups = onSnapshot(query(collection(db, 'group_chats')), (snapshot) => {
         setGroupRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -122,9 +118,15 @@ export default function App() {
 
   const handleLike = async (likedUserId) => {
     try {
-        await addDoc(collection(db, 'matches'), { participants: [user.uid, likedUserId], matchedAt: serverTimestamp() });
+        const newMatchRef = await addDoc(collection(db, 'matches'), { participants: [user.uid, likedUserId], matchedAt: serverTimestamp() });
+        setCurrentChatId(newMatchRef.id);
+        setActiveChatType('private');
+        setActiveTab('chat');
         setProfileIndex(p => p + 1);
-    } catch (err) { console.error(err); }
+    } catch (err) { 
+        console.error(err);
+        alert("กรุณาตรวจสอบสิทธิ์ Firestore (Rules) เพื่อให้อ่าน/เขียนแชทได้");
+    }
   };
 
   const sendMessage = async (e) => {
@@ -143,21 +145,21 @@ export default function App() {
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid);
 
   // --- UI Components ---
-  if (authLoading) return <div className="min-h-screen bg-[#141419] text-white flex items-center justify-center font-bold">Loading 🐾...</div>;
+  if (authLoading) return <div className="min-h-screen bg-[#121212] text-white flex items-center justify-center font-bold">Loading 🐾...</div>;
 
   if (!user) {
     return (
-      <div className="max-w-md mx-auto min-h-screen bg-[#141419] flex flex-col justify-center items-center p-6 text-slate-800 font-sans">
+      <div className="max-w-md mx-auto min-h-screen bg-[#121212] flex flex-col justify-center items-center p-6 font-sans">
         <div className="bg-white w-full rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
           <div className="text-center mb-8">
             <div className="text-6xl mb-2">🐈‍⬛</div>
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">TINNTUU</h1>
-            <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold mt-1">Join the pack</p>
+            <p className="text-[10px] text-[#FF4500] uppercase tracking-widest font-bold mt-1">Join the pack</p>
           </div>
           <form onSubmit={handleAuth} className="space-y-4">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-orange-400 font-medium" placeholder="Email Address" required />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-orange-400 font-medium" placeholder="Password" required />
-            <button type="submit" className="w-full bg-gradient-to-r from-red-500 to-orange-400 text-white font-black py-4 rounded-full shadow-lg hover:opacity-90 transition mt-4">
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium" placeholder="Email Address" required />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium" placeholder="Password" required />
+            <button type="submit" className="w-full bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white font-black py-4 rounded-full shadow-lg hover:opacity-90 transition mt-4">
               {isLoginMode ? 'เข้าสู่ระบบ (Sign In)' : 'สร้างบัญชี (Create Account)'}
             </button>
           </form>
@@ -170,12 +172,12 @@ export default function App() {
   }
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-[#141419] flex flex-col font-sans pb-[85px] relative">
+    <div className="max-w-md mx-auto min-h-screen bg-[#121212] flex flex-col font-sans pb-[85px] relative">
       
       {/* Header */}
-      <header className="px-6 py-5 flex justify-between items-center sticky top-0 z-50 bg-[#141419]/90 backdrop-blur-sm">
+      <header className="px-6 py-5 flex justify-between items-center sticky top-0 z-50 bg-[#121212]/90 backdrop-blur-sm">
         <h1 className="text-2xl font-black text-white flex items-center gap-2">
-          TINNTUU <span className="text-orange-400 text-lg">🐾</span>
+          TINNTUU <span className="text-[#FF4500] text-lg">🐾</span>
         </h1>
         <div className="bg-white text-slate-900 px-4 py-1.5 rounded-full text-xs font-black shadow-sm">
           TU Network
@@ -185,13 +187,11 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto px-4">
         
-        {/* SWIPE TAB (Cards like the reference) */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col gap-4">
-            {/* Horizontal Matches List (Top bar in ref) */}
             <div className="bg-white rounded-[2rem] p-4 flex gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide">
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
-                <div className="w-14 h-14 bg-gradient-to-br from-red-400 to-orange-400 rounded-full flex items-center justify-center text-white text-2xl shadow-sm">🔍</div>
+                <div className="w-14 h-14 bg-gradient-to-br from-[#FF4500] to-[#FF7043] rounded-full flex items-center justify-center text-white text-2xl shadow-sm">🔍</div>
                 <span className="text-[9px] font-bold text-slate-600">ค้นหา</span>
               </div>
               {matches.map(m => {
@@ -199,15 +199,14 @@ export default function App() {
                   const otherProfile = allProfiles.find(p => p.uid === otherUid);
                   if(!otherProfile) return null;
                   return (
-                    <div key={m.id} onClick={() => { setCurrentChatId(m.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer">
-                      <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover border-2 border-slate-100 shadow-sm" />
+                    <div key={m.id} onClick={() => { setCurrentChatId(m.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform">
+                      <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover border-2 border-[#FF4500] p-0.5 shadow-sm" />
                       <span className="text-[9px] font-bold text-slate-800 truncate w-full text-center">{otherProfile.name.split(' ')[0]}</span>
                     </div>
                   )
               })}
             </div>
 
-            {/* Main Swipe Card */}
             {othersProfiles.length > 0 && profileIndex < othersProfiles.length ? (
               <div className="bg-white rounded-[2.5rem] p-4 pb-6 shadow-xl flex flex-col relative overflow-hidden">
                 <div className="absolute top-6 right-6 bg-white/90 backdrop-blur text-slate-900 text-[10px] px-3 py-1.5 rounded-full font-black z-10 shadow-sm">
@@ -218,17 +217,16 @@ export default function App() {
                   <h2 className="text-2xl font-black text-slate-900">{othersProfiles[profileIndex].name}</h2>
                   <p className="text-sm text-slate-500 font-medium mt-1 mb-4">{othersProfiles[profileIndex].bio}</p>
                   
-                  {/* Pill Badges (Like the cat stats in ref) */}
                   <div className="flex flex-wrap gap-2 mb-6">
                     <span className="bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] px-3 py-1.5 rounded-full">🎓 {othersProfiles[profileIndex].faculty}</span>
-                    <span className="bg-orange-50 border border-orange-100 text-orange-600 font-bold text-[10px] px-3 py-1.5 rounded-full">🏷 {othersProfiles[profileIndex].tags}</span>
+                    <span className="bg-[#FF4500]/10 border border-[#FF4500]/20 text-[#FF4500] font-bold text-[10px] px-3 py-1.5 rounded-full">🏷 {othersProfiles[profileIndex].tags}</span>
                   </div>
                   
                   <div className="flex gap-3">
                     <button onClick={() => setProfileIndex(p => p + 1)} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-full font-black text-xs hover:bg-slate-200 transition-colors">
                       ข้ามไปก่อน (Skip)
                     </button>
-                    <button onClick={() => handleLike(othersProfiles[profileIndex].uid)} className="flex-1 py-4 bg-gradient-to-r from-red-500 to-orange-400 text-white rounded-full font-black text-xs shadow-lg hover:opacity-90 transition-colors">
+                    <button onClick={() => handleLike(othersProfiles[profileIndex].uid)} className="flex-1 py-4 bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white rounded-full font-black text-xs shadow-lg hover:opacity-90 transition-all active:scale-95">
                       ถูกใจ (Match) 🐾
                     </button>
                   </div>
@@ -239,13 +237,12 @@ export default function App() {
                 <div className="text-6xl mb-4">💤</div>
                 <h3 className="text-lg font-black text-slate-900">พักผ่อนก่อนนะ</h3>
                 <p className="text-xs text-slate-500 mt-2">โปรไฟล์หมดแล้ว เหมียว~</p>
-                <button onClick={() => setProfileIndex(0)} className="mt-6 bg-slate-900 text-white px-6 py-3 rounded-full text-xs font-bold w-full">โหลดโปรไฟล์ใหม่</button>
+                <button onClick={() => setProfileIndex(0)} className="mt-6 bg-[#121212] text-white px-6 py-3 rounded-full text-xs font-bold w-full">โหลดโปรไฟล์ใหม่</button>
               </div>
             )}
           </div>
         )}
 
-        {/* NEW TAB: SCHEDULE & MEETUPS (Inspired by Ref) */}
         {activeTab === 'schedule' && (
           <div className="flex flex-col gap-4 h-full">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl text-slate-900">
@@ -254,7 +251,6 @@ export default function App() {
                 <span className="text-2xl">🐈</span>
               </h2>
               
-              {/* Mock Calendar UI */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6">
                 <div className="flex justify-between items-center mb-4 font-bold text-sm">
                   <button className="text-slate-400">&lt;</button>
@@ -267,7 +263,7 @@ export default function App() {
                 <div className="grid grid-cols-7 text-center text-xs font-bold gap-y-3">
                   <div className="text-slate-300">29</div><div className="text-slate-300">30</div>
                   <div>1</div><div>2</div><div>3</div>
-                  <div className="bg-orange-400 text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-sm">4</div>
+                  <div className="bg-[#FF4500] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-sm">4</div>
                   <div>5</div>
                 </div>
               </div>
@@ -281,11 +277,11 @@ export default function App() {
                     <p className="text-[10px] text-slate-500 font-bold mt-1">วันนี้ • 18:00 น.</p>
                   </div>
                 </div>
-                <div className="bg-orange-50 border border-orange-100 rounded-2xl p-4 flex items-center gap-4">
+                <div className="bg-[#FF4500]/10 border border-[#FF4500]/20 rounded-2xl p-4 flex items-center gap-4">
                   <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-sm">📚</div>
                   <div>
-                    <h4 className="font-black text-orange-900 text-sm">ติวสอบมิดเทอม (กลุ่ม)</h4>
-                    <p className="text-[10px] text-orange-600 font-bold mt-1">พรุ่งนี้ • หอสมุดป๋วย</p>
+                    <h4 className="font-black text-[#FF4500] text-sm">ติวสอบมิดเทอม (กลุ่ม)</h4>
+                    <p className="text-[10px] text-[#FF4500]/70 font-bold mt-1">พรุ่งนี้ • หอสมุดป๋วย</p>
                   </div>
                 </div>
               </div>
@@ -293,16 +289,13 @@ export default function App() {
           </div>
         )}
 
-        {/* CHAT TAB */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-170px)] shadow-xl relative">
-                {/* Custom Chat Tabs */}
                 <div className="flex p-2 bg-slate-50 gap-2">
-                    <button onClick={() => setActiveChatType('list')} className={`flex-1 py-3 rounded-full text-xs font-black transition-colors ${activeChatType === 'list' || activeChatType === 'private' ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:bg-slate-200'}`}>คุยส่วนตัว</button>
-                    <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-3 rounded-full text-xs font-black transition-colors ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:bg-slate-200'}`}>ห้องกลุ่ม</button>
+                    <button onClick={() => setActiveChatType('list')} className={`flex-1 py-3 rounded-full text-xs font-black transition-colors ${activeChatType === 'list' || activeChatType === 'private' ? 'bg-[#121212] text-white shadow' : 'text-slate-400 hover:bg-slate-200'}`}>คุยส่วนตัว</button>
+                    <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-3 rounded-full text-xs font-black transition-colors ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-[#121212] text-white shadow' : 'text-slate-400 hover:bg-slate-200'}`}>ห้องกลุ่ม</button>
                 </div>
 
-                {/* Lists */}
                 {activeChatType === 'list' && (
                     <div className="p-2 flex-1 overflow-y-auto">
                         {matches.map(m => {
@@ -311,25 +304,26 @@ export default function App() {
                             if(!otherProfile) return null;
                             return (
                                 <div key={m.id} onClick={() => { setCurrentChatId(m.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-slate-50 transition-colors">
-                                    <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover shadow-sm" />
+                                    <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100" />
                                     <span className="font-black text-sm text-slate-800">{otherProfile.name}</span>
                                 </div>
                             )
                         })}
                     </div>
                 )}
+                
                 {activeChatType === 'group_list' && (
                     <div className="p-4 flex-1 overflow-y-auto flex flex-col">
                         <div className="flex gap-2 mb-4">
                             <input value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} placeholder="ชื่อห้องกลุ่ม" className="bg-slate-100 px-4 py-3 rounded-full text-xs flex-1 outline-none font-bold" />
-                            <button onClick={() => { /* Create group logic */ }} className="bg-slate-900 text-white px-5 rounded-full text-xs font-black">สร้าง</button>
+                            <button className="bg-[#121212] text-white px-5 rounded-full text-xs font-black">สร้าง</button>
                         </div>
                         <div className="flex-1 space-y-3">
                             {groupRooms.map(room => (
                                 <div key={room.id} className="border border-slate-100 bg-white p-4 rounded-2xl shadow-sm">
                                     <div className="flex justify-between items-center">
                                         <h4 className="font-black text-slate-800 text-sm">{room.room_name}</h4>
-                                        <button onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="bg-orange-100 text-orange-600 font-black text-[10px] px-3 py-1.5 rounded-full">เข้าห้อง</button>
+                                        <button onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="bg-[#FF4500]/10 text-[#FF4500] font-black text-[10px] px-3 py-1.5 rounded-full">เข้าห้อง</button>
                                     </div>
                                 </div>
                             ))}
@@ -337,7 +331,6 @@ export default function App() {
                     </div>
                 )}
 
-                {/* Inside Chat Room */}
                 {(activeChatType === 'private' || activeChatType === 'group_chat') && (
                     <div className="flex flex-col h-full bg-slate-50 absolute inset-0 z-10">
                         <div className="p-4 bg-white flex items-center justify-between shadow-sm">
@@ -347,21 +340,20 @@ export default function App() {
                         </div>
                         <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
                             {messages.map(m => (
-                                <div key={m.id} className={`max-w-[75%] p-3.5 text-xs font-medium rounded-2xl shadow-sm ${m.senderId === user.uid ? 'bg-orange-400 text-white self-end rounded-br-none' : 'bg-white text-slate-800 self-start rounded-bl-none'}`}>
+                                <div key={m.id} className={`max-w-[75%] p-3.5 text-xs font-medium rounded-2xl shadow-sm ${m.senderId === user.uid ? 'bg-[#FF4500] text-white self-end rounded-br-none' : 'bg-white text-slate-800 self-start rounded-bl-none'}`}>
                                     {m.text}
                                 </div>
                             ))}
                         </div>
                         <form onSubmit={sendMessage} className="p-3 bg-white flex gap-2 items-center">
                             <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 px-4 py-3.5 rounded-full text-xs outline-none font-medium" placeholder="พิมพ์ข้อความ..." />
-                            <button type="submit" className="bg-slate-900 text-white w-11 h-11 rounded-full flex items-center justify-center font-black shadow-md">➤</button>
+                            <button type="submit" className="bg-[#121212] text-white w-11 h-11 rounded-full flex items-center justify-center font-black shadow-md">➤</button>
                         </form>
                     </div>
                 )}
             </div>
         )}
 
-        {/* AI & VOICE TAB */}
         {activeTab === 'practice' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl">
@@ -371,19 +363,19 @@ export default function App() {
               </div>
               <div className="bg-slate-50 border border-slate-100 p-5 rounded-3xl mb-4 text-center">
                 <p className="text-sm text-slate-700 font-bold mb-4">{aiSuggestion || 'กดปุ่มด้านล่างเพื่อขอประโยคชวนคุยเมี๊ยว'}</p>
-                <button onClick={generateAiNextQuestion} className="bg-slate-900 text-white py-3 px-6 rounded-full text-xs font-black shadow-md">ขอไอเดียชวนคุย 💡</button>
+                <button onClick={generateAiNextQuestion} className="bg-[#121212] text-white py-3 px-6 rounded-full text-xs font-black shadow-md">ขอไอเดียชวนคุย 💡</button>
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-red-500 to-orange-400 rounded-[2.5rem] p-6 text-white text-center shadow-xl">
+            <div className="bg-gradient-to-br from-[#FF4500] to-[#FF7043] rounded-[2.5rem] p-6 text-white text-center shadow-xl">
               <h4 className="text-lg font-black mb-1">ทดสอบระบบเสียง</h4>
               <p className="text-[10px] font-bold opacity-80 mb-5">จำลองการโทร (Voice Call)</p>
               {isCalling ? (
-                <button onClick={() => setIsCalling(false)} className="bg-white text-red-600 px-8 py-4 rounded-full text-sm font-black w-full shadow-lg">
+                <button onClick={() => setIsCalling(false)} className="bg-white text-[#FF4500] px-8 py-4 rounded-full text-sm font-black w-full shadow-lg">
                   วางสาย (End Call) 🛑
                 </button>
               ) : (
-                <button onClick={() => setIsCalling(true)} className="bg-slate-900 text-white px-8 py-4 rounded-full text-sm font-black w-full shadow-lg">
+                <button onClick={() => setIsCalling(true)} className="bg-[#121212] text-white px-8 py-4 rounded-full text-sm font-black w-full shadow-lg">
                   เริ่มโทร (Start Call) 📞
                 </button>
               )}
@@ -391,11 +383,10 @@ export default function App() {
           </div>
         )}
 
-        {/* PROFILE TAB (Blob UI Integrated) */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[2.5rem] p-6 shadow-xl pb-8">
             <div className="text-center mb-6 border-b border-slate-100 pb-6">
-              <div className="w-24 h-24 bg-orange-100 rounded-[2rem] mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-inner">
+              <div className="w-24 h-24 bg-[#FF4500]/10 rounded-[2rem] mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-inner border border-[#FF4500]/20">
                 {myProfile.img ? <img src={myProfile.img} className="w-full h-full object-cover" /> : <span className="text-4xl">🐱</span>}
               </div>
               <h2 className="text-2xl font-black text-slate-900">{myProfile.name || 'ชื่อของคุณ'}</h2>
@@ -403,20 +394,20 @@ export default function App() {
             </div>
 
             <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 text-sm font-bold">
-                <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 text-slate-800" placeholder="ชื่อเล่น" required />
+                <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800" placeholder="ชื่อเล่น" required />
                 <div className="flex gap-3">
-                    <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 text-slate-800" placeholder="คณะ" />
-                    <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 text-slate-800" placeholder="หอพัก" />
+                    <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800" placeholder="คณะ" />
+                    <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800" placeholder="หอพัก" />
                 </div>
-                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 text-slate-800 resize-none" placeholder="Bio สั้นๆ" />
-                <button type="submit" className="bg-slate-900 text-white py-4 rounded-full font-black text-xs shadow-md mt-4">บันทึกตัวตน 🐾</button>
+                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 resize-none" placeholder="Bio สั้นๆ" />
+                <button type="submit" className="bg-[#121212] text-white py-4 rounded-full font-black text-xs shadow-md mt-4">บันทึกตัวตน 🐾</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-red-50 text-red-500 py-4 rounded-full font-black text-xs mt-2">ออกจากระบบ</button>
             </form>
           </div>
         )}
       </main>
 
-      {/* Floating Navigation (Blob Style) */}
+      {/* Floating Navigation */}
       <div className="fixed bottom-4 inset-x-0 max-w-md mx-auto px-4 z-50">
         <nav className="bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.3)] flex justify-between p-2">
           {[
@@ -429,7 +420,7 @@ export default function App() {
             <button 
               key={tab.id} 
               onClick={() => setActiveTab(tab.id)} 
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-2xl transition-all ${activeTab === tab.id ? 'bg-slate-900 text-white scale-95' : 'text-slate-400 hover:bg-slate-50'}`}
+              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-2xl transition-all ${activeTab === tab.id ? 'bg-[#FF4500] text-white scale-95 shadow-md' : 'text-slate-400 hover:bg-slate-50'}`}
             >
               <span className="text-lg mb-0.5">{tab.icon}</span>
               <span className="text-[8px] font-black">{tab.label}</span>
