@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
-  query, orderBy, limit, serverTimestamp, setDoc, doc 
+  query, orderBy, limit, serverTimestamp, setDoc, doc,
+  enableIndexedDbPersistence 
 } from 'firebase/firestore';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 
@@ -20,11 +21,19 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
+// เปิดใช้งาน Offline Persistence เพื่อแบ็คอัพแคชบนเครื่อง
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code === 'failed-precondition') {
+    console.warn('Multiple tabs open, persistence can only be enabled in one tab at a time.');
+  } else if (err.code === 'unimplemented') {
+    console.warn('The current browser does not support all of the features required to enable persistence');
+  }
+});
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('swipe');
   const [user, setUser] = useState(null);
   
-  // Real-time Profiles & Chat
   const [allProfiles, setAllProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   const [activeChannel, setActiveChannel] = useState('global');
@@ -32,10 +41,8 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [points, setPoints] = useState(300);
 
-  // Daily Check-in Lock State
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
 
-  // Profile Form State
   const [myProfile, setMyProfile] = useState({
     name: '',
     faculty: 'พาณิชยศาสตร์และการบัญชี',
@@ -46,19 +53,16 @@ export default function App() {
   });
   const [hasProfile, setHasProfile] = useState(false);
 
-  // Practice & Voice Simulator
   const [selectedScenario, setSelectedScenario] = useState('ev_bus');
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [isCalling, setIsCalling] = useState(false);
   const [callTimer, setCallTimer] = useState(0);
 
-  // 1. Anonymous Authentication
   useEffect(() => {
     signInAnonymously(auth)
       .then(res => setUser(res.user))
       .catch(err => console.error("Auth error:", err));
 
-    // Check Daily Check-in Lock from LocalStorage
     const today = new Date().toDateString();
     const lastCheckin = localStorage.getItem('last_checkin_date');
     if (lastCheckin === today) {
@@ -66,7 +70,6 @@ export default function App() {
     }
   }, []);
 
-  // 2. Fetch Profiles from Firestore
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users'), limit(50));
@@ -83,7 +86,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Fetch Real-time Multi-Channel Chat
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -98,7 +100,6 @@ export default function App() {
     return () => unsubscribe();
   }, [user, activeChannel]);
 
-  // Voice Call Timer
   useEffect(() => {
     let interval;
     if (isCalling) {
@@ -109,7 +110,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isCalling]);
 
-  // Daily Check-in Handler (Strict 1 per day)
   const handleDailyCheckin = () => {
     const today = new Date().toDateString();
     if (hasCheckedInToday) {
@@ -122,7 +122,6 @@ export default function App() {
     alert('เช็กอินสำเร็จ! รับ 50 TinnCoins เข้าบัญชี');
   };
 
-  // Image Upload Handler
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -134,7 +133,6 @@ export default function App() {
     }
   };
 
-  // Save Profile & Auto Switch Screen
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -154,15 +152,14 @@ export default function App() {
       }, { merge: true });
 
       setHasProfile(true);
-      alert('สร้างตัวตนสำเร็จ! ข้อมูลของคุณบันทึกลงระบบเรียบร้อย');
-      setActiveTab('swipe'); // บันทึกเสร็จจะเด้งไปหน้าปัดเพื่อนทันที!
+      alert('สร้างตัวตนสำเร็จ! ข้อมูลของคุณบันทึกลงระบบ Firebase เรียบร้อย');
+      setActiveTab('swipe');
     } catch (err) {
       console.error("Save profile error:", err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     }
   };
 
-  // Send Chat Message with Interactive Auto-Reply Simulation
   const sendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
@@ -178,7 +175,6 @@ export default function App() {
         createdAt: serverTimestamp()
       });
 
-      // Simulated Friend Reply after 2-4 seconds
       setTimeout(async () => {
         const friendReplies = [
           "ยินดีที่ได้รู้จักน้าาา!",
@@ -217,7 +213,6 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-b from-orange-50 via-slate-50 to-orange-50 flex flex-col justify-between font-sans text-slate-800 pb-20 shadow-2xl border-x border-orange-100">
       
-      {/* Top Header - Vivid TU Orange & Red Gradient */}
       <header className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white px-5 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div>
           <h1 className="text-2xl font-black tracking-wider flex items-center gap-1.5">
@@ -230,10 +225,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Container */}
       <main className="p-4 flex-1 flex flex-col">
         
-        {/* TAB 1: SWIPE MATCHING */}
         {activeTab === 'swipe' && (
           <div className="flex-1 flex flex-col justify-center items-center">
             {allProfiles.length > 0 && profileIndex < allProfiles.length ? (
@@ -249,7 +242,6 @@ export default function App() {
                     📍 {allProfiles[profileIndex].location || 'ธรรมศาสตร์ รังสิต'}
                   </div>
 
-                  {/* Profile Details Floating Card */}
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 text-white pt-16">
                     <div className="flex justify-between items-end">
                       <div>
@@ -271,7 +263,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Swipe Buttons */}
                 <div className="p-4 bg-white flex gap-3">
                   <button onClick={() => setProfileIndex(p => p + 1)} className="flex-1 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition active:scale-95">
                     ข้าม ✖️
@@ -296,7 +287,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: CREATE / EDIT PROFILE */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-xl flex-1 flex flex-col justify-between">
             <div>
@@ -313,7 +303,6 @@ export default function App() {
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-3.5 text-xs">
-                {/* Upload Image Avatar */}
                 <div className="flex flex-col items-center justify-center mb-2">
                   <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-400 shadow-md mb-2 bg-slate-50 relative">
                     <img src={myProfile.img} alt="preview" className="w-full h-full object-cover" />
@@ -389,7 +378,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: PRACTICE & VOICE SIMULATOR */}
         {activeTab === 'practice' && (
           <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-xl flex-1 flex flex-col justify-between">
             <div>
@@ -420,7 +408,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Voice Room Call Box */}
             <div className="bg-slate-900 text-white p-5 rounded-2xl text-center shadow-lg">
               <h4 className="text-xs font-bold mb-1">🎙️ ทดลองฝึกพูดคุยแบบเสียง</h4>
               <p className="text-[10px] text-slate-400 mb-3">จำลองระบบพูดคุยสายเสียงสตรีมมิ่ง</p>
@@ -443,7 +430,6 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: REAL-TIME CHAT ROOMS */}
         {activeTab === 'chat' && (
           <div className="flex-1 flex flex-col bg-white rounded-3xl border border-orange-100 shadow-xl h-[480px] overflow-hidden">
             <div className="p-2.5 bg-orange-50/50 border-b border-orange-100 flex justify-around text-xs font-semibold">
@@ -481,10 +467,8 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: VIP 49 BAHT & DAILY CHECK-IN */}
         {activeTab === 'more' && (
           <div className="space-y-4">
-            {/* Strict Daily Check-in Lock Box */}
             <div className="bg-white p-5 rounded-3xl border border-orange-100 shadow-xl">
               <h3 className="font-bold text-xs text-slate-900 mb-3">🎯 ภารกิจสะสมแต้มประจำวัน</h3>
               <div className="flex justify-between items-center bg-orange-50/60 p-3.5 rounded-2xl border border-orange-100">
@@ -502,7 +486,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* VIP 49 Baht Box */}
             <div className="bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden">
               <span className="text-[10px] font-bold text-amber-200 uppercase tracking-widest block mb-1">
                 TinnTuu VIP Membership
@@ -530,7 +513,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 max-w-md w-full bg-white/95 backdrop-blur-md border-t border-orange-100 flex justify-around py-3 px-1 z-50 shadow-lg">
         <button onClick={() => setActiveTab('swipe')} className={`flex flex-col items-center text-[10px] font-bold ${activeTab === 'swipe' ? 'text-red-600' : 'text-slate-400'}`}>
           <span className="text-base mb-0.5">🔥</span>
