@@ -21,7 +21,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Enable Offline Cache Persistence
+// Enable Offline Cache
 enableIndexedDbPersistence(db).catch(() => {});
 
 export default function App() {
@@ -35,14 +35,12 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   
-  // Start Points at 0 strictly
+  // Points & Missions
   const [points, setPoints] = useState(0);
-
-  // Daily Check-in Lock
   const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
   const [hasSwipeMissionDone, setHasSwipeMissionDone] = useState(false);
 
-  // Profile State
+  // Profile Form State
   const [myProfile, setMyProfile] = useState({
     name: '',
     faculty: 'ศิลปศาสตร์',
@@ -53,13 +51,13 @@ export default function App() {
   });
   const [hasProfile, setHasProfile] = useState(false);
 
-  // Practice & Voice Room State
+  // Practice & Voice Call State
   const [selectedScenario, setSelectedScenario] = useState('ev_bus');
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [isCalling, setIsCalling] = useState(false);
   const [callTimer, setCallTimer] = useState(0);
 
-  // 1. Anonymous Auth
+  // 1. Authentication
   useEffect(() => {
     signInAnonymously(auth)
       .then(res => setUser(res.user))
@@ -71,7 +69,7 @@ export default function App() {
     }
   }, []);
 
-  // 2. Fetch Profiles from Firestore
+  // 2. Fetch Profiles Real-time
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users'), limit(50));
@@ -88,7 +86,7 @@ export default function App() {
     return () => unsubscribe();
   }, [user]);
 
-  // 3. Fetch Real-time Multi-Channel Chat
+  // 3. Fetch Chat Messages Real-time
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -114,7 +112,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isCalling]);
 
-  // Daily Check-in Lock (Strict 1 per day)
+  // Daily Check-in Lock
   const handleDailyCheckin = () => {
     const today = new Date().toDateString();
     if (hasCheckedInToday) {
@@ -127,7 +125,7 @@ export default function App() {
     alert('เช็กอินสำเร็จ! รับ 30 TinnCoins');
   };
 
-  // Image Upload
+  // Image Upload Handler
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -139,7 +137,7 @@ export default function App() {
     }
   };
 
-  // Save Profile & Auto-Switch
+  // 💡 SAVE PROFILE & AUTO-NAVIGATE TO SWIPE PAGE
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -159,15 +157,16 @@ export default function App() {
       }, { merge: true });
 
       setHasProfile(true);
-      alert('สร้างตัวตนสำเร็จ! ข้อมูลของคุณบันทึกลงระบบ Firebase เรียบร้อย');
-      setActiveTab('swipe');
+      setProfileIndex(0); // Reset index to see refreshed profiles
+      alert('บันทึกตัวตนสำเร็จ! ระบบนำคุณไปยังหน้าปัดเพื่อนทันที');
+      setActiveTab('swipe'); // 🔥 สลับไปหน้าปัดเพื่อนทันที!
     } catch (err) {
       console.error("Save profile error:", err);
       alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
     }
   };
 
-  // Send Chat Message
+  // Send Message with Auto-reply Simulation
   const sendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
@@ -183,7 +182,6 @@ export default function App() {
         createdAt: serverTimestamp()
       });
 
-      // Auto reply simulation
       setTimeout(async () => {
         const friendReplies = [
           "ยินดีที่ได้รู้จักน้าาา!",
@@ -222,7 +220,7 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-b from-orange-100 via-pink-50 to-red-100 flex flex-col justify-between font-sans text-slate-800 pb-20 shadow-2xl border-x border-orange-200">
       
-      {/* Top Bar - Bright Vivid Colors */}
+      {/* Header */}
       <header className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 text-white px-5 py-4 flex justify-between items-center sticky top-0 z-50 shadow-lg">
         <div>
           <h1 className="text-2xl font-black tracking-wider flex items-center gap-1.5">
@@ -235,7 +233,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Body */}
       <main className="p-4 flex-1 flex flex-col">
         
         {/* TAB 1: SWIPE & MATCH */}
@@ -254,7 +252,6 @@ export default function App() {
                     📍 {allProfiles[profileIndex].location || 'ธรรมศาสตร์ รังสิต'}
                   </div>
 
-                  {/* Profile Info Overlay */}
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/95 via-black/60 to-transparent p-5 text-white pt-16">
                     <div className="flex justify-between items-end">
                       <div>
@@ -276,7 +273,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Match Swipe Action Buttons */}
                 <div className="p-4 bg-white flex gap-3">
                   <button onClick={() => setProfileIndex(p => p + 1)} className="flex-1 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition active:scale-95 shadow-sm">
                     ข้าม ✖️
@@ -291,11 +287,16 @@ export default function App() {
                 <div className="w-16 h-16 bg-gradient-to-tr from-amber-400 to-orange-500 text-white rounded-full flex items-center justify-center text-3xl mx-auto mb-3 font-bold shadow-lg">
                   🐱
                 </div>
-                <h3 className="text-base font-black text-slate-800">ยังไม่มีตัวตนอื่นให้ปัดแมตช์</h3>
-                <p className="text-xs text-slate-400 mt-1">สร้างตัวตนของคุณเพื่อเป็นโปรไฟล์แรกให้เพื่อนปัดหา!</p>
-                <button onClick={() => setActiveTab('profile')} className="mt-5 bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 text-white px-7 py-3 rounded-2xl text-xs font-black shadow-lg shadow-orange-500/40 active:scale-95">
-                  {hasProfile ? 'แก้ไขตัวตนของคุณ' : 'ไปสร้างตัวตนเลย 👤'}
-                </button>
+                <h3 className="text-base font-black text-slate-800">วนปัดครบทุกโปรไฟล์แล้ว!</h3>
+                <p className="text-xs text-slate-400 mt-1">กดปุ่มสร้างตัวตน หรือวนดูโปรไฟล์อีกครั้งได้เลย</p>
+                <div className="flex gap-2 justify-center mt-5">
+                  <button onClick={() => setProfileIndex(0)} className="bg-slate-100 text-slate-700 px-5 py-3 rounded-2xl text-xs font-bold shadow-sm active:scale-95">
+                    วนดูใหม่ 🔄
+                  </button>
+                  <button onClick={() => setActiveTab('profile')} className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 text-white px-5 py-3 rounded-2xl text-xs font-black shadow-lg shadow-orange-500/40 active:scale-95">
+                    {hasProfile ? 'แก้ไขตัวตน' : 'สร้างตัวตน 👤'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -308,7 +309,7 @@ export default function App() {
               <div className="flex justify-between items-center mb-4">
                 <div>
                   <h2 className="text-lg font-black text-slate-900">👤 สร้างตัวตนของคุณ</h2>
-                  <p className="text-xs text-slate-400">รูปภาพและข้อมูลจะถูกบันทึกขึ้นระบบจริง</p>
+                  <p className="text-xs text-slate-400">เมื่อกรอกเสร็จ ระบบจะพาไปหน้าปัดเพื่อนทันที</p>
                 </div>
                 {hasProfile && (
                   <span className="bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full border border-green-300 shadow-sm">
@@ -318,7 +319,6 @@ export default function App() {
               </div>
 
               <form onSubmit={handleSaveProfile} className="space-y-3.5 text-xs">
-                {/* Image Upload Avatar */}
                 <div className="flex flex-col items-center justify-center mb-2">
                   <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-500 shadow-xl mb-2 bg-slate-50 relative">
                     <img src={myProfile.img} alt="preview" className="w-full h-full object-cover" />
@@ -387,7 +387,7 @@ export default function App() {
                 </div>
 
                 <button type="submit" className="w-full mt-2 py-3.5 bg-gradient-to-r from-orange-500 via-red-500 to-pink-600 text-white font-black rounded-2xl shadow-lg shadow-orange-500/30 hover:opacity-95 transition active:scale-95 text-xs">
-                  บันทึกตัวตนแล้วเริ่มเล่นเลย ✨
+                  บันทึกตัวตน แล้วไปปัดเพื่อนต่อเลย 🚀
                 </button>
               </form>
             </div>
@@ -425,7 +425,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Voice Streaming Call Simulator */}
             <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 rounded-3xl text-center shadow-xl border border-indigo-900">
               <h4 className="text-xs font-extrabold mb-1 text-amber-300">🎙️ ระบบคอลเสียง Real-time (Voice Call)</h4>
               <p className="text-[10px] text-slate-400 mb-3">ทดสอบพูดคุยแบบเสียงสตรีมมิ่งสด</p>
@@ -448,7 +447,7 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 4: MULTI-CHANNEL CHAT */}
+        {/* TAB 4: CHAT ROOMS */}
         {activeTab === 'chat' && (
           <div className="flex-1 flex flex-col bg-white rounded-3xl border-2 border-orange-200 shadow-2xl h-[480px] overflow-hidden">
             <div className="p-2.5 bg-orange-100/60 border-b border-orange-200 flex justify-around text-xs font-extrabold">
@@ -486,14 +485,12 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: MISSIONS & VIP 49 BAHT */}
+        {/* TAB 5: MISSIONS & VIP */}
         {activeTab === 'more' && (
           <div className="space-y-4">
-            {/* Mission Center */}
             <div className="bg-white p-5 rounded-3xl border-2 border-orange-200 shadow-xl space-y-3">
               <h3 className="font-black text-xs text-slate-900 flex items-center gap-1">🎯 ศูนย์ภารกิจเก็บแต้ม TinnCoins</h3>
               
-              {/* Mission 1 */}
               <div className="flex justify-between items-center bg-orange-50 p-3 rounded-2xl border border-orange-200">
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">1. เช็กอินประจำวัน</h4>
@@ -508,7 +505,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Mission 2 */}
               <div className="flex justify-between items-center bg-orange-50 p-3 rounded-2xl border border-orange-200">
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">2. ลองปัดการ์ดหาเพื่อน</h4>
@@ -529,7 +525,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* VIP Subscription 49 Baht */}
             <div className="bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 text-white p-6 rounded-3xl shadow-2xl relative overflow-hidden">
               <span className="text-[10px] font-black text-amber-200 uppercase tracking-widest block mb-1">
                 TinnTuu VIP Membership
@@ -557,7 +552,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Navigation */}
+      {/* Navigation Bar */}
       <nav className="fixed bottom-0 max-w-md w-full bg-white/95 backdrop-blur-md border-t border-orange-200 flex justify-around py-3 px-1 z-50 shadow-xl">
         <button onClick={() => setActiveTab('swipe')} className={`flex flex-col items-center text-[10px] font-bold ${activeTab === 'swipe' ? 'text-red-600' : 'text-slate-400'}`}>
           <span className="text-base mb-0.5">🔥</span>
