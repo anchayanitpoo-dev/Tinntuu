@@ -24,7 +24,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('swipe');
   const [user, setUser] = useState(null);
   
-  // Real-time Database States
+  // Real-time Profiles & Chat
   const [allProfiles, setAllProfiles] = useState([]);
   const [profileIndex, setProfileIndex] = useState(0);
   const [activeChannel, setActiveChannel] = useState('global');
@@ -32,7 +32,10 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [points, setPoints] = useState(300);
 
-  // My Profile Form State
+  // Daily Check-in Lock State
+  const [hasCheckedInToday, setHasCheckedInToday] = useState(false);
+
+  // Profile Form State
   const [myProfile, setMyProfile] = useState({
     name: '',
     faculty: 'พาณิชยศาสตร์และการบัญชี',
@@ -54,9 +57,16 @@ export default function App() {
     signInAnonymously(auth)
       .then(res => setUser(res.user))
       .catch(err => console.error("Auth error:", err));
+
+    // Check Daily Check-in Lock from LocalStorage
+    const today = new Date().toDateString();
+    const lastCheckin = localStorage.getItem('last_checkin_date');
+    if (lastCheckin === today) {
+      setHasCheckedInToday(true);
+    }
   }, []);
 
-  // 2. Fetch Real Profiles from Firestore
+  // 2. Fetch Profiles from Firestore
   useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'users'), limit(50));
@@ -64,7 +74,6 @@ export default function App() {
       const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllProfiles(profiles);
       
-      // Check if current user already has a saved profile
       const myDoc = profiles.find(p => p.uid === user.uid);
       if (myDoc) {
         setMyProfile(myDoc);
@@ -100,7 +109,20 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isCalling]);
 
-  // Handle Profile Image Upload
+  // Daily Check-in Handler (Strict 1 per day)
+  const handleDailyCheckin = () => {
+    const today = new Date().toDateString();
+    if (hasCheckedInToday) {
+      alert('คุณรับแต้มเช็กอินประจำวันของวันนี้ไปแล้วครับ!');
+      return;
+    }
+    localStorage.setItem('last_checkin_date', today);
+    setHasCheckedInToday(true);
+    setPoints(p => p + 50);
+    alert('เช็กอินสำเร็จ! รับ 50 TinnCoins เข้าบัญชี');
+  };
+
+  // Image Upload Handler
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -112,7 +134,7 @@ export default function App() {
     }
   };
 
-  // Save Profile & Auto Hide/Switch Page
+  // Save Profile & Auto Switch Screen
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -132,7 +154,7 @@ export default function App() {
       }, { merge: true });
 
       setHasProfile(true);
-      alert('สร้างตัวตนเรียบร้อย! ข้อมูลของคุณถูกบันทึกลงระบบแล้ว');
+      alert('สร้างตัวตนสำเร็จ! ข้อมูลของคุณบันทึกลงระบบเรียบร้อย');
       setActiveTab('swipe'); // บันทึกเสร็จจะเด้งไปหน้าปัดเพื่อนทันที!
     } catch (err) {
       console.error("Save profile error:", err);
@@ -140,19 +162,43 @@ export default function App() {
     }
   };
 
-  // Send Chat Message
+  // Send Chat Message with Interactive Auto-Reply Simulation
   const sendMessage = async (e) => {
     if (e) e.preventDefault();
     if (!inputText.trim()) return;
 
+    const currentText = inputText;
+    setInputText('');
+
     try {
       await addDoc(collection(db, `chat_${activeChannel}`), {
-        text: inputText,
+        text: currentText,
         senderName: myProfile.name || 'นักศึกษา มธ.',
         senderId: user ? user.uid : 'anonymous',
         createdAt: serverTimestamp()
       });
-      setInputText('');
+
+      // Simulated Friend Reply after 2-4 seconds
+      setTimeout(async () => {
+        const friendReplies = [
+          "ยินดีที่ได้รู้จักน้าาา!",
+          "วันนี้เรียนตึก SC โดดแดดร้อนมากเลย 555",
+          "เย็นนี้มีใครไปกินชาบูตรงเชียงรากบ้าง?",
+          "ทักทายครับๆ หาเพื่อนติวสอบมิดเทอมอยู่พอดีเลย",
+          "เราก็อยู่หอเชียงรากเหมือนกัน!"
+        ];
+        const randomReply = friendReplies[Math.floor(Math.random() * friendReplies.length)];
+        const friendNames = ["ข้าวฟ่าง ศิลปศาสตร์", "เคน SIIT", "มิ้นท์ BBA", "พีร์ วิศวะ"];
+        const randomName = friendNames[Math.floor(Math.random() * friendNames.length)];
+
+        await addDoc(collection(db, `chat_${activeChannel}`), {
+          text: randomReply,
+          senderName: randomName,
+          senderId: 'simulated_friend',
+          createdAt: serverTimestamp()
+        });
+      }, 3000);
+
     } catch (err) {
       console.error("Send message error:", err);
     }
@@ -160,7 +206,7 @@ export default function App() {
 
   const generateAiNextQuestion = () => {
     const questions = [
-      "มิดเทอมนี้อ่านหนังสือแถวตึก SC หรือหอพักมากกว่ากันครับ?",
+      "มิดเทอมนี้อ่านหนังสือแถวตึก SC หรืออ่านที่หอพักมากกว่ากันครับ?",
       "เมนูเด็ดที่สั่งกินเป็นประจำตรงเชียงรากคือเมนูไหนครับ?",
       "ปกติเดินทางใน มธ. ชอบนั่งรถ EV สายไหนมากที่สุด?",
       "เสาร์-อาทิตย์นี้ มีแพลนไปคาเฟ่หรือกลับบ้านครับ?"
@@ -169,52 +215,55 @@ export default function App() {
   };
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-slate-800 pb-20 shadow-2xl border-x border-slate-200">
+    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-b from-orange-50 via-slate-50 to-orange-50 flex flex-col justify-between font-sans text-slate-800 pb-20 shadow-2xl border-x border-orange-100">
       
-      {/* Top Navigation Bar - Clean Minimal Red */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-100 px-5 py-3.5 flex justify-between items-center sticky top-0 z-50">
+      {/* Top Header - Vivid TU Orange & Red Gradient */}
+      <header className="bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 text-white px-5 py-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
         <div>
-          <h1 className="text-xl font-black tracking-tight text-red-600">TinnTuu</h1>
-          <p className="text-[10px] text-slate-400 font-semibold -mt-0.5">TU Student Network</p>
+          <h1 className="text-2xl font-black tracking-wider flex items-center gap-1.5">
+            TinnTuu <span className="text-xs bg-white/20 backdrop-blur-md px-2 py-0.5 rounded-full font-bold border border-white/30">มธ.</span>
+          </h1>
+          <p className="text-[10px] text-orange-100 font-medium">Thammasat Social Network</p>
         </div>
-        <div className="bg-red-50 text-red-600 border border-red-100 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+        <div className="bg-white/20 backdrop-blur-md border border-white/30 text-white px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1 shadow-inner">
           <span>🪙</span> {points} แต้ม
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Container */}
       <main className="p-4 flex-1 flex flex-col">
         
         {/* TAB 1: SWIPE MATCHING */}
         {activeTab === 'swipe' && (
           <div className="flex-1 flex flex-col justify-center items-center">
             {allProfiles.length > 0 && profileIndex < allProfiles.length ? (
-              <div className="w-full bg-white rounded-3xl border border-slate-100 shadow-xl overflow-hidden flex flex-col relative">
-                <div className="relative h-96 bg-slate-100">
+              <div className="w-full bg-white rounded-3xl border border-orange-100 shadow-2xl overflow-hidden flex flex-col relative">
+                <div className="relative h-[400px] bg-slate-100">
                   <img 
                     src={allProfiles[profileIndex].img} 
                     alt="profile" 
                     className="w-full h-full object-cover" 
                   />
-                  <div className="absolute top-4 left-4 bg-black/40 backdrop-blur-md text-white text-[11px] px-3.5 py-1 rounded-full font-medium border border-white/20">
+                  
+                  <div className="absolute top-4 left-4 bg-orange-500/90 backdrop-blur-md text-white text-[11px] px-3.5 py-1 rounded-full font-bold border border-white/20 shadow-sm">
                     📍 {allProfiles[profileIndex].location || 'ธรรมศาสตร์ รังสิต'}
                   </div>
 
-                  {/* Floating Bio Card */}
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 text-white pt-12">
+                  {/* Profile Details Floating Card */}
+                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-5 text-white pt-16">
                     <div className="flex justify-between items-end">
                       <div>
-                        <h2 className="text-2xl font-black">{allProfiles[profileIndex].name}</h2>
+                        <h2 className="text-2xl font-black text-orange-300">{allProfiles[profileIndex].name}</h2>
                         <p className="text-xs text-slate-200 mt-1 leading-relaxed line-clamp-2">{allProfiles[profileIndex].bio}</p>
                       </div>
-                      <span className="bg-red-600 text-white font-bold text-[10px] px-3 py-1 rounded-full whitespace-nowrap shadow-md">
+                      <span className="bg-gradient-to-r from-orange-500 to-red-600 text-white font-extrabold text-[10px] px-3 py-1 rounded-full whitespace-nowrap shadow-md">
                         {allProfiles[profileIndex].faculty}
                       </span>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mt-3">
                       {Array.isArray(allProfiles[profileIndex].tags) && allProfiles[profileIndex].tags.map((tag, idx) => (
-                        <span key={idx} className="bg-white/20 backdrop-blur-md text-white text-[10px] px-2.5 py-0.5 rounded-md font-medium border border-white/10">
+                        <span key={idx} className="bg-white/20 backdrop-blur-md text-white text-[10px] px-2.5 py-0.5 rounded-md font-medium border border-white/20">
                           #{tag}
                         </span>
                       ))}
@@ -222,25 +271,25 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Bottom Swipe Action Buttons */}
+                {/* Swipe Buttons */}
                 <div className="p-4 bg-white flex gap-3">
                   <button onClick={() => setProfileIndex(p => p + 1)} className="flex-1 py-3.5 bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs hover:bg-slate-200 transition active:scale-95">
-                    ข้าม
+                    ข้าม ✖️
                   </button>
-                  <button onClick={() => { alert(`แมตช์สำเร็จ! ทักทาย ${allProfiles[profileIndex].name} แล้ว`); setProfileIndex(p => p + 1); }} className="flex-1 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-bold text-xs shadow-lg shadow-red-500/30 hover:opacity-95 transition active:scale-95">
+                  <button onClick={() => { alert(`แมตช์สำเร็จ! ส่งสัญญาณทักทายหา ${allProfiles[profileIndex].name} แล้ว`); setProfileIndex(p => p + 1); }} className="flex-1 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white rounded-2xl font-bold text-xs shadow-lg shadow-orange-500/30 hover:opacity-95 transition active:scale-95">
                     ถูกใจโปรไฟล์ ❤️
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="text-center py-16 bg-white w-full rounded-3xl border border-slate-100 p-8 shadow-sm">
-                <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-3 font-bold">
-                  ✨
+              <div className="text-center py-16 bg-white w-full rounded-3xl border border-orange-100 p-8 shadow-md">
+                <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-2xl mx-auto mb-3 font-bold">
+                  🐱
                 </div>
-                <h3 className="text-base font-bold text-slate-800">ยังไม่มีโปรไฟล์อื่นในขณะนี้</h3>
-                <p className="text-xs text-slate-400 mt-1">กดสร้างตัวตนของคุณ เพื่อเป็นโปรไฟล์แรกให้เพื่อนปัดหา!</p>
-                <button onClick={() => setActiveTab('profile')} className="mt-5 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-xl text-xs font-bold shadow-md active:scale-95">
-                  {hasProfile ? 'แก้ไขตัวตนของคุณ' : 'ไปสร้างตัวตนเลย'}
+                <h3 className="text-base font-bold text-slate-800">ยังไม่มีตัวตนอื่นในระบบ</h3>
+                <p className="text-xs text-slate-400 mt-1">สร้างตัวตนของคุณ เพื่อเป็นโปรไฟล์แรกให้เพื่อนปัดหา!</p>
+                <button onClick={() => setActiveTab('profile')} className="mt-5 bg-gradient-to-r from-orange-500 to-red-600 text-white px-6 py-3 rounded-2xl text-xs font-bold shadow-lg shadow-orange-500/30 active:scale-95">
+                  {hasProfile ? 'แก้ไขตัวตนของคุณ' : 'สร้างตัวตนเลย 👤'}
                 </button>
               </div>
             )}
@@ -249,28 +298,28 @@ export default function App() {
 
         {/* TAB 2: CREATE / EDIT PROFILE */}
         {activeTab === 'profile' && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xl flex-1 flex flex-col justify-between">
+          <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-xl flex-1 flex flex-col justify-between">
             <div>
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">สร้างตัวตนของคุณ</h2>
+                  <h2 className="text-lg font-bold text-slate-900">👤 สร้างตัวตนของคุณ</h2>
                   <p className="text-xs text-slate-400">รูปภาพและข้อมูลจะถูกบันทึกขึ้นระบบจริง</p>
                 </div>
                 {hasProfile && (
-                  <span className="bg-green-50 text-green-600 text-[10px] font-bold px-2.5 py-1 rounded-full border border-green-200">
-                    ✓ บันทึกสำเร็จแล้ว
+                  <span className="bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full border border-green-200">
+                    ✓ มีโปรไฟล์ในระบบแล้ว
                   </span>
                 )}
               </div>
 
-              <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
-                {/* Upload Image Avatar Area */}
+              <form onSubmit={handleSaveProfile} className="space-y-3.5 text-xs">
+                {/* Upload Image Avatar */}
                 <div className="flex flex-col items-center justify-center mb-2">
-                  <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-red-500/20 p-1 shadow-md mb-2 bg-slate-50 relative group">
-                    <img src={myProfile.img} alt="preview" className="w-full h-full object-cover rounded-full" />
+                  <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-orange-400 shadow-md mb-2 bg-slate-50 relative">
+                    <img src={myProfile.img} alt="preview" className="w-full h-full object-cover" />
                   </div>
-                  <label className="text-red-600 bg-red-50 hover:bg-red-100 px-4 py-1.5 rounded-full font-bold text-[11px] cursor-pointer transition border border-red-200 shadow-sm">
-                    📷 เลือกรูปภาพจาก iPad / โทรศัพท์
+                  <label className="text-white bg-gradient-to-r from-orange-500 to-red-600 hover:opacity-95 px-4 py-1.5 rounded-full font-bold text-[11px] cursor-pointer transition shadow-md">
+                    📷 เลือกรูปภาพโปรไฟล์จากเครื่อง
                     <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
                   </label>
                 </div>
@@ -282,7 +331,7 @@ export default function App() {
                     value={myProfile.name} 
                     onChange={e => setMyProfile({...myProfile, name: e.target.value})} 
                     placeholder="เช่น ข้าวฟ่าง, เคน SIIT" 
-                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500 font-medium" 
+                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500 font-medium" 
                     required 
                   />
                 </div>
@@ -295,7 +344,7 @@ export default function App() {
                       value={myProfile.faculty} 
                       onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} 
                       placeholder="พาณิชยศาสตร์ฯ" 
-                      className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500" 
+                      className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500" 
                     />
                   </div>
                   <div>
@@ -305,7 +354,7 @@ export default function App() {
                       value={myProfile.location} 
                       onChange={e => setMyProfile({...myProfile, location: e.target.value})} 
                       placeholder="หอเชียงราก" 
-                      className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500" 
+                      className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500" 
                     />
                   </div>
                 </div>
@@ -317,7 +366,7 @@ export default function App() {
                     onChange={e => setMyProfile({...myProfile, bio: e.target.value})} 
                     placeholder="ชวนไปกินข้าว ทักมาคุย หรือหาเพื่อนติววิชาต่างๆ..." 
                     rows={2}
-                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500" 
+                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500" 
                   />
                 </div>
 
@@ -328,11 +377,11 @@ export default function App() {
                     value={Array.isArray(myProfile.tags) ? myProfile.tags.join(', ') : myProfile.tags} 
                     onChange={e => setMyProfile({...myProfile, tags: e.target.value})} 
                     placeholder="เด็กหอ, สายคาเฟ่, บอร์ดเกม" 
-                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500" 
+                    className="w-full bg-slate-50 p-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500" 
                   />
                 </div>
 
-                <button type="submit" className="w-full mt-2 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-xl shadow-lg shadow-red-500/20 hover:opacity-95 transition active:scale-95 text-xs">
+                <button type="submit" className="w-full mt-2 py-3.5 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-2xl shadow-lg shadow-orange-500/30 hover:opacity-95 transition active:scale-95 text-xs">
                   บันทึกและเริ่มเล่นได้เลย ✨
                 </button>
               </form>
@@ -342,31 +391,31 @@ export default function App() {
 
         {/* TAB 3: PRACTICE & VOICE SIMULATOR */}
         {activeTab === 'practice' && (
-          <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xl flex-1 flex flex-col justify-between">
+          <div className="bg-white rounded-3xl p-6 border border-orange-100 shadow-xl flex-1 flex flex-col justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900 mb-1">ฝึกบทสนทนา มธ.</h2>
+              <h2 className="text-base font-bold text-slate-900 mb-1">🗣️ ฝึกบทสนทนา มธ.</h2>
               <p className="text-xs text-slate-400 mb-4">ซ้อมบทสนทนาสำหรับทักเพื่อนในมหาลัย</p>
 
               <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
-                <button onClick={() => setSelectedScenario('ev_bus')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'ev_bus' ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}>บนรถ EV</button>
-                <button onClick={() => setSelectedScenario('chiangrak')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'chiangrak' ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}>ร้านอาหารเชียงราก</button>
-                <button onClick={() => setSelectedScenario('study')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'study' ? 'bg-red-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600'}`}>โต๊ะติวตึก SC</button>
+                <button onClick={() => setSelectedScenario('ev_bus')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'ev_bus' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600'}`}>🚌 บนรถ EV</button>
+                <button onClick={() => setSelectedScenario('chiangrak')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'chiangrak' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600'}`}>🍲 ร้านอาหารเชียงราก</button>
+                <button onClick={() => setSelectedScenario('study')} className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition ${selectedScenario === 'study' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white shadow-md' : 'bg-slate-100 text-slate-600'}`}>📚 โต๊ะติวตึก SC</button>
               </div>
 
-              <div className="bg-slate-50 border border-slate-200/80 p-4 rounded-2xl mb-4 text-xs text-slate-700 leading-relaxed">
+              <div className="bg-orange-50/80 border border-orange-200 p-4 rounded-2xl mb-4 text-xs text-slate-700 leading-relaxed">
                 {selectedScenario === 'ev_bus' && <p><strong>บริบท:</strong> นั่งบนรถ EV ข้างเพื่อนที่ไม่รู้จัก อยากเริ่มทักทายแก้เขิน</p>}
                 {selectedScenario === 'chiangrak' && <p><strong>บริบท:</strong> อยากหาเพื่อนร่วมโต๊ะหารค่าชาบู/อาหารเย็นย่านเชียงราก</p>}
                 {selectedScenario === 'study' && <p><strong>บริบท:</strong> ต้องการชวนเพื่อนกลุ่มวิชาเดียวกันตั้งกลุ่มติวสอบมิดเทอม</p>}
               </div>
 
-              <div className="bg-orange-50/50 border border-orange-200/60 p-4 rounded-2xl mb-3">
-                <span className="text-[11px] font-bold text-orange-600 block mb-1">💡 คำถามแนะนำสำหรับทักทาย</span>
+              <div className="bg-red-50 border border-red-100 p-4 rounded-2xl mb-3">
+                <span className="text-[11px] font-bold text-red-600 block mb-1">💡 คำถามแนะนำสำหรับทักทาย</span>
                 <p className="text-xs text-slate-700 leading-relaxed font-medium">
                   {aiSuggestion || 'กดปุ่มช่วยคิดคำถามด้านล่างเพื่อรับคำถามแนะนำ'}
                 </p>
               </div>
 
-              <button onClick={generateAiNextQuestion} className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl text-xs shadow-md mb-4 active:scale-95 transition">
+              <button onClick={generateAiNextQuestion} className="w-full py-3 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold rounded-2xl text-xs shadow-md mb-4 active:scale-95 transition">
                 สุ่มหัวข้อคำถามถัดไป
               </button>
             </div>
@@ -396,11 +445,11 @@ export default function App() {
 
         {/* TAB 4: REAL-TIME CHAT ROOMS */}
         {activeTab === 'chat' && (
-          <div className="flex-1 flex flex-col bg-white rounded-3xl border border-slate-100 shadow-xl h-[480px] overflow-hidden">
-            <div className="p-2.5 bg-slate-50 border-b border-slate-100 flex justify-around text-xs font-semibold">
-              <button onClick={() => setActiveChannel('global')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'global' ? 'bg-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>ห้องแชทรวม</button>
-              <button onClick={() => setActiveChannel('chiangrak')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'chiangrak' ? 'bg-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>เชียงราก</button>
-              <button onClick={() => setActiveChannel('study')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'study' ? 'bg-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>ห้องติวหนังสือ</button>
+          <div className="flex-1 flex flex-col bg-white rounded-3xl border border-orange-100 shadow-xl h-[480px] overflow-hidden">
+            <div className="p-2.5 bg-orange-50/50 border-b border-orange-100 flex justify-around text-xs font-semibold">
+              <button onClick={() => setActiveChannel('global')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'global' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>💬 ห้องแชทรวม</button>
+              <button onClick={() => setActiveChannel('chiangrak')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'chiangrak' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>🍲 เชียงราก</button>
+              <button onClick={() => setActiveChannel('study')} className={`px-3.5 py-1.5 rounded-xl transition ${activeChannel === 'study' ? 'bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold shadow-sm' : 'text-slate-500'}`}>📚 ห้องติวหนังสือ</button>
             </div>
 
             <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-slate-50/50">
@@ -417,13 +466,13 @@ export default function App() {
               })}
             </div>
 
-            <form onSubmit={sendMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2">
+            <form onSubmit={sendMessage} className="p-3 bg-white border-t border-orange-100 flex gap-2">
               <input 
                 type="text" 
                 value={inputText} 
                 onChange={e => setInputText(e.target.value)} 
                 placeholder="พิมพ์ข้อความคุยกับเพื่อนๆ..." 
-                className="flex-1 bg-slate-50 text-xs px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-red-500"
+                className="flex-1 bg-slate-50 text-xs px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-orange-500"
               />
               <button type="submit" className="bg-gradient-to-r from-orange-500 to-red-600 text-white text-xs px-5 py-3 rounded-xl font-bold shadow-md hover:opacity-95 transition">
                 ส่ง
@@ -432,41 +481,47 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 5: VIP 49 BAHT */}
+        {/* TAB 5: VIP 49 BAHT & DAILY CHECK-IN */}
         {activeTab === 'more' && (
           <div className="space-y-4">
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xl">
+            {/* Strict Daily Check-in Lock Box */}
+            <div className="bg-white p-5 rounded-3xl border border-orange-100 shadow-xl">
               <h3 className="font-bold text-xs text-slate-900 mb-3">🎯 ภารกิจสะสมแต้มประจำวัน</h3>
-              <div className="flex justify-between items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-200/60">
+              <div className="flex justify-between items-center bg-orange-50/60 p-3.5 rounded-2xl border border-orange-100">
                 <div>
                   <h4 className="text-xs font-bold text-slate-800">เช็กอินเข้าใช้งาน</h4>
-                  <p className="text-[10px] text-slate-400">รับทันที 30 แต้ม</p>
+                  <p className="text-[10px] text-slate-400">รับทันที 50 แต้ม (วันละ 1 ครั้ง)</p>
                 </div>
-                <button onClick={() => { setPoints(p => p + 30); alert('ได้รับ 30 แต้มสำเร็จ!'); }} className="bg-red-600 text-white text-xs px-3.5 py-1.5 rounded-xl font-bold shadow-sm">
-                  รับแต้ม
+                <button 
+                  onClick={handleDailyCheckin} 
+                  disabled={hasCheckedInToday}
+                  className={`text-xs px-4 py-2 rounded-xl font-bold shadow-sm transition ${hasCheckedInToday ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-orange-500 to-red-600 text-white active:scale-95'}`}
+                >
+                  {hasCheckedInToday ? 'เช็กอินแล้ววันนี้' : 'เช็กอินรับ 50 แต้ม'}
                 </button>
               </div>
             </div>
 
-            <div className="bg-slate-900 text-white p-6 rounded-3xl shadow-xl border border-slate-800 relative overflow-hidden">
-              <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest block mb-1">
+            {/* VIP 49 Baht Box */}
+            <div className="bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden">
+              <span className="text-[10px] font-bold text-amber-200 uppercase tracking-widest block mb-1">
                 TinnTuu VIP Membership
               </span>
               <h3 className="text-xl font-black">สมาชิกระดับ VIP</h3>
-              <p className="text-xs text-slate-400 mt-1">ปลดล็อกฟีเจอร์กรองคณะ หอพัก และดูว่าใครกดถูกใจคุณ</p>
+              <p className="text-xs text-orange-100 mt-1">ปลดล็อกฟีเจอร์กรองคณะ หอพัก และดูว่าใครกดถูกใจคุณ</p>
 
-              <div className="my-4 text-xs space-y-2 text-slate-300 bg-white/5 p-3.5 rounded-2xl border border-white/10">
+              <div className="my-4 text-xs space-y-2 text-white bg-white/10 backdrop-blur-md p-3.5 rounded-2xl border border-white/20">
                 <div>• ปัดการ์ดโปรไฟล์เพื่อนได้ไม่จำกัดจำนวน</div>
                 <div>• เข้าถึงห้องแชทเสียงคุณภาพสูง</div>
                 <div>• เครื่องหมายยืนยันตัวตนพิเศษ VIP</div>
               </div>
 
-              <div className="flex items-center justify-between mt-5 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between mt-5 pt-4 border-t border-white/20">
                 <div>
                   <span className="text-2xl font-black text-white">49 บาท</span>
-                  <span className="text-xs text-slate-400"> / เดือน</span>
+                  <span className="text-xs text-orange-100"> / เดือน</span>
                 </div>
-                <button onClick={() => alert('จำลองการสมัครสมาชิกระดับ VIP 49 บาทสำเร็จ')} className="bg-gradient-to-r from-orange-500 to-red-600 text-white px-5 py-2.5 rounded-xl font-bold text-xs shadow-md hover:opacity-95 transition">
+                <button onClick={() => alert('จำลองการสมัครสมาชิกระดับ VIP 49 บาทสำเร็จ')} className="bg-white text-red-600 px-5 py-2.5 rounded-xl font-black text-xs shadow-md hover:bg-orange-50 transition">
                   สมัคร VIP 49.-
                 </button>
               </div>
@@ -476,7 +531,7 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 max-w-md w-full bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around py-3 px-1 z-50 shadow-lg">
+      <nav className="fixed bottom-0 max-w-md w-full bg-white/95 backdrop-blur-md border-t border-orange-100 flex justify-around py-3 px-1 z-50 shadow-lg">
         <button onClick={() => setActiveTab('swipe')} className={`flex flex-col items-center text-[10px] font-bold ${activeTab === 'swipe' ? 'text-red-600' : 'text-slate-400'}`}>
           <span className="text-base mb-0.5">🔥</span>
           <span>ปัดเพื่อน</span>
