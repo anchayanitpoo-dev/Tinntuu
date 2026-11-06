@@ -65,6 +65,7 @@ export default function App() {
   const [newRoomName, setNewRoomName] = useState('');
   
   const [aiSuggestion, setAiSuggestion] = useState('');
+  const [toastMsg, setToastMsg] = useState(null); // State สำหรับแจ้งเตือนแชท
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -78,7 +79,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // โหลดข้อมูล Public
+  // โหลดข้อมูล Public และดักจับการแจ้งเตือน
   useEffect(() => {
     if (!user) return;
     const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), snapshot => {
@@ -97,10 +98,28 @@ export default function App() {
     }, error => console.error('โหลดโปรไฟล์ไม่สำเร็จ:', error));
 
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "modified") {
+            const data = change.doc.data();
+            if (data.lastSender && data.lastSender !== user.uid) {
+              setToastMsg('💬 มีข้อความใหม่จากเพื่อนเมี๊ยว!');
+              setTimeout(() => setToastMsg(null), 3500);
+            }
+          }
+        });
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     const unsubGroups = onSnapshot(query(collection(db, 'group_chats')), (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "modified") {
+            const data = change.doc.data();
+            if (data.lastSender && data.lastSender !== user.uid) {
+              setToastMsg('👥 มีข้อความใหม่ในกลุ่มแชท!');
+              setTimeout(() => setToastMsg(null), 3500);
+            }
+          }
+        });
         setGroupRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
@@ -250,7 +269,15 @@ export default function App() {
     if (!inputText.trim() || !currentChatId) return;
     const text = inputText; setInputText('');
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
+    
     await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
+
+    // อัปเดตห้องแชทเพื่อสะกิดแจ้งเตือนอีกฝ่าย
+    if (activeChatType === 'private') {
+      await updateDoc(doc(db, 'matches', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid });
+    } else if (activeChatType === 'group_chat') {
+      await updateDoc(doc(db, 'group_chats', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid });
+    }
   };
 
   const handleAddEvent = async (e) => {
@@ -332,6 +359,7 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-red-600 via-[#FF4500] to-orange-500 flex flex-col font-sans pb-[85px] relative">
+      
       <header className="px-6 py-5 flex justify-between items-center sticky top-0 z-50 bg-transparent">
         <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-md">
           TINNTUU <span className="text-white text-lg">🐾</span>
@@ -340,6 +368,14 @@ export default function App() {
           TU Network
         </div>
       </header>
+
+      {/* --- แจ้งเตือนแชทใหม่ --- */}
+      {toastMsg && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-sm text-white px-6 py-3 rounded-full text-xs font-black shadow-[0_10px_40px_rgba(0,0,0,0.3)] z-[100] animate-bounce border border-slate-700 flex items-center gap-2">
+          <span>{toastMsg}</span>
+          <button onClick={() => setToastMsg(null)} className="ml-2 text-slate-400 hover:text-white">✕</button>
+        </div>
+      )}
 
       <main className="flex-1 overflow-y-auto px-4">
         {activeTab === 'swipe' && (
@@ -554,6 +590,7 @@ export default function App() {
                 
                 <button type="submit" className="bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white py-4 rounded-full font-black text-xs shadow-md mt-4 hover:opacity-90 transition">บันทึกตัวตน 🐾</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-100 text-slate-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-slate-200">ออกจากระบบ</button>
+                
                 <button type="button" onClick={handleDeleteAccount} className="bg-red-50 text-red-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-red-100 border border-red-100 transition">ลบบัญชีผู้ใช้ (Delete Account)</button>
             </form>
           </div>
