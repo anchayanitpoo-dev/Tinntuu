@@ -1,837 +1,178 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { initializeApp } from 'firebase/app';
+import React, { useState, useEffect } from 'react';
+import { auth, db } from './firebase'; // เช็ก path นำเข้าให้ตรงกับไฟล์ตั้งค่าของคุณ
 import { 
-  getFirestore, collection, addDoc, onSnapshot, 
-  query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField, deleteDoc
-} from 'firebase/firestore';
-import { 
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
-  onAuthStateChanged, signOut, deleteUser
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  sendEmailVerification, 
+  onAuthStateChanged, 
+  signOut 
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
-// --- 1. Firebase Config ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCzRZijYlfdmB4ZCqP04H-c67L0pDOoEP4",
-  authDomain: "tinntuu-tu.firebaseapp.com",
-  projectId: "tinntuu-tu",
-  storageBucket: "tinntuu-tu.firebasestorage.app",
-  messagingSenderId: "652536103906",
-  appId: "1:652536103906:web:e91e18bfcf65b928926fbb",
-  measurementId: "G-676PH5Q3Y3"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-const auth = getAuth(app);
-enableIndexedDbPersistence(db).catch(() => {});
-
-// รูปน้องแมวขาวสุดกวนสำหรับธีม
-const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
-
-// ค่าเริ่มต้นสำหรับโปรไฟล์ใหม่
-const DEFAULT_PROFILE = {
-  name: '', 
-  faculty: 'ธรรมศาสตร์', 
-  location: 'เชียงราก', 
-  bio: 'ทักมาคุยกันได้นะ เมี๊ยว~ 🐾', 
-  img: CAT_MASCOT, 
-  tags: 'หาเพื่อน, ทาสแมว',
-  swiped: [],
-  schedule: []
-};
-
-// ไอเดียประโยคชวนคุยแยกตามหมวดหมู่ มธ.
-const ICEBREAKERS_BY_CATEGORY = {
-  food: [
-    "ช่วงนี้มีร้านชาบูเด็ดๆ แถวเชียงรากแนะนำมั้ย?",
-    "ยามเย็นปกติชอบกินข้าวที่ใต้หอหรือไปยูเซนเตอร์?",
-    "เคยกินป้าต๋อยยัง เมนูไหนอร่อยสุดเหรอ?"
-  ],
-  study: [
-    "ลงวิชา TU100/TU106 เซกไหนไปเหรอ?",
-    "สัปดาห์นี้มีสอบมิดเทอมมั้ย อ่านหนังสือถึงไหนแล้ว?",
-    "มีที่อ่านหนังสือเงียบๆ แนะนำในมหาลัยมั้ย?"
-  ],
-  cat: [
-    "เป็นทาสแมวสายไหนเหรอ แมวส้ม แมวสามสี หรือแมวลายสลิด?",
-    "เคยเจอน้องแมวประจำคณะเรายัง น้องกวนมากเลยนะ!",
-    "ถ้าเลี้ยงแมวได้ 1 ตัว อยากตั้งชื่อว่าอะไร?"
-  ]
-};
-
-export default function App() {
-  // --- States ---
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+function App() {
+  // --- State สำหรับเก็บข้อมูล ---
+  const [user, setUser] = useState(null); // เก็บสถานะคนล็อกอิน
   const [isLoginMode, setIsLoginMode] = useState(true);
+  
+  // ช่องกรอกฟอร์ม
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [faculty, setFaculty] = useState('');
+  const [address, setAddress] = useState('');
 
-  const [activeTab, setActiveTab] = useState('swipe'); 
-  const [allProfiles, setAllProfiles] = useState([]);
-  const [localSwiped, setLocalSwiped] = useState([]);
-
-  const [myProfile, setMyProfile] = useState(DEFAULT_PROFILE);
-  const [hasProfile, setHasProfile] = useState(false);
-
-  const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
-
-  const [matches, setMatches] = useState([]);
-  const [activeChatType, setActiveChatType] = useState('list'); 
-  const [currentChatId, setCurrentChatId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [inputText, setInputText] = useState('');
-  const [groupRooms, setGroupRooms] = useState([]);
-  const [newRoomName, setNewRoomName] = useState('');
-  
-  // States เพิ่มเติมสำหรับระบบค้นหาเพื่อน/ห้องแชท
-  const [chatSearchQuery, setChatSearchQuery] = useState('');
-
-  // States สำหรับฟีเจอร์ช่วยพูด
-  const [aiSuggestion, setAiSuggestion] = useState('');
-  const [catVibe, setCatVibe] = useState('friendly');
-  const [toastMsg, setToastMsg] = useState(null);
-  const [questDone, setQuestDone] = useState({ practice: false, chat: false });
-
-  const messagesEndRef = useRef(null);
-  const fileInputRef = useRef(null);
-
-  // --- Effects ---
+  // --- เช็กสถานะการล็อกอินและยืนยันอีเมล ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
+      // ถ้าล็อกอินเข้ามา แต่ยังไม่ได้กดลิงก์ยืนยันในอีเมล จะไม่ให้เข้าหน้าหลัก
+      if (currentUser && !currentUser.emailVerified) {
+        setUser(null);
+      } else {
+        setUser(currentUser);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // โหลดข้อมูล Public
-  useEffect(() => {
-    if (!user) return;
-    const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), snapshot => {
-      const profiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      setAllProfiles(profiles);
-      const myDoc = profiles.find(p => p.uid === user.uid);
-
-      if (myDoc) {
-        setMyProfile(prev => ({ ...prev, ...myDoc }));
-        setHasProfile(true);
-      } else {
-        setMyProfile(DEFAULT_PROFILE);
-        setHasProfile(false);
-        setActiveTab('profile');
-      }
-    }, error => console.error('โหลดโปรไฟล์ไม่สำเร็จ:', error));
-
-    const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === "modified") {
-            const data = change.doc.data();
-            if (data.lastSender && data.lastSender !== user.uid) {
-              setToastMsg('💬 มีข้อความใหม่จากเพื่อนเมี๊ยว!');
-              setTimeout(() => setToastMsg(null), 3500);
-            }
-          }
-        });
-        setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    const unsubGroups = onSnapshot(query(collection(db, 'group_chats')), (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          if (change.type === "modified") {
-            const data = change.doc.data();
-            if (data.lastSender && data.lastSender !== user.uid) {
-              setToastMsg('👥 มีข้อความใหม่ในกลุ่มแชท!');
-              setTimeout(() => setToastMsg(null), 3500);
-            }
-          }
-        });
-        setGroupRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-    });
-
-    return () => { unsubProfiles(); unsubMatches(); unsubGroups(); };
-  }, [user]);
-
-  // โหลดข้อมูล Private
-  useEffect(() => {
-    if (!user) {
-      setLocalSwiped([]);
-      setMyProfile(DEFAULT_PROFILE);
-      return;
-    }
-
-    const unsub = onSnapshot(doc(db, 'user_private', user.uid), snapshot => {
-      const data = snapshot.exists() ? snapshot.data() : {};
-      const swiped = data.swiped || [];
-      setLocalSwiped(swiped);
-      setMyProfile(prev => ({
-        ...prev,
-        swiped,
-        schedule: data.schedule || []
-      }));
-    }, error => console.error('โหลดข้อมูลส่วนตัวไม่สำเร็จ:', error));
-
-    return () => unsub();
-  }, [user]);
-
-  // โหลดข้อความแชท
-  useEffect(() => {
-    if (!user || !currentChatId || (activeChatType !== 'private' && activeChatType !== 'group_chat')) return;
-    const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
-    const unsub = onSnapshot(query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(50)), (snapshot) => {
-      setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse());
-    });
-    return () => unsub();
-  }, [user, currentChatId, activeChatType]);
-
-  // รีเซ็ตจำนวนข้อความอ่านแล้วเป็น 0
-  useEffect(() => {
-    if (user && currentChatId && activeChatType === 'private') {
-      setDoc(doc(db, 'matches', currentChatId), {
-        [`unread_${user.uid}`]: 0
-      }, { merge: true }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
-    }
-  }, [currentChatId, activeChatType, user]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, activeChatType]);
-
-  // --- Handlers ---
+  // --- ฟังก์ชันจัดการ สมัครสมาชิก / ล็อกอิน ---
   const handleAuth = async (e) => {
     e.preventDefault();
-    try {
-      if (isLoginMode) {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
-        await createUserWithEmailAndPassword(auth, email, password);
-        alert('สร้างบัญชีสำเร็จ! ยินดีต้อนรับเมี๊ยว 🐾');
-      }
-    } catch (err) { alert(err.message); }
-  };
+    const cleanEmail = email.trim().toLowerCase();
 
-  const handleImageFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setMyProfile(prev => ({ ...prev, img: reader.result }));
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    if (!user || !myProfile.name.trim()) return;
-
-    try {
-      await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid,
-        name: myProfile.name.trim(),
-        faculty: myProfile.faculty || '',
-        location: myProfile.location || '',
-        bio: myProfile.bio || '',
-        img: myProfile.img || '',
-        tags: myProfile.tags || '',
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-
-      await setDoc(doc(db, 'user_private', user.uid), {
-        swiped: myProfile.swiped || [],
-        schedule: myProfile.schedule || []
-      }, { merge: true });
-
-      setHasProfile(true);
-      setActiveTab('swipe');
-      alert('บันทึกโปรไฟล์เรียบร้อยแล้ว เมี๊ยว! 🐾');
-    } catch (err) {
-      console.error(err);
-      alert('บันทึกโปรไฟล์ไม่สำเร็จ');
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    const confirmDelete = window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชี? ข้อมูลทั้งหมดจะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้ 😿");
-    if (!confirmDelete) return;
-
-    try {
-      await deleteDoc(doc(db, 'user_private', user.uid));
-      await deleteDoc(doc(db, 'users', user.uid));
-      await deleteUser(user);
-      alert('ลบบัญชีของคุณเรียบร้อยแล้ว ลาก่อนเมี๊ยว 🐾');
-    } catch (err) {
-      console.error(err);
-      if (err.code === 'auth/requires-recent-login') {
-        alert('กรุณา "ออกจากระบบ" แล้ว "เข้าสู่ระบบใหม่" อีกครั้งก่อนกดลบบัญชีเพื่อยืนยันตัวตนครับ');
-      } else {
-        alert('เกิดข้อผิดพลาดในการลบบัญชี');
-      }
-    }
-  };
-
-  const handleSwipe = async (targetUid, isLike) => {
-    if (!user || !targetUid || targetUid === user.uid) return;
-
-    try {
-      setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
-
-      await setDoc(doc(db, 'user_private', user.uid), {
-        swiped: arrayUnion(targetUid)
-      }, { merge: true });
-
-      if (isLike) {
-        const matchRef = await addDoc(collection(db, 'matches'), {
-          participants: [user.uid, targetUid],
-          matchedAt: serverTimestamp()
-        });
-
-        setCurrentChatId(matchRef.id);
-        setActiveChatType('private');
-        setActiveTab('chat');
-      }
-    } catch (err) {
-      console.error(err);
-      setLocalSwiped(prev => prev.filter(id => id !== targetUid));
-      alert('ระบบปัดขัดข้อง กรุณาลองใหม่');
-    }
-  };
-
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || !currentChatId) return;
-    const text = inputText; setInputText('');
-    const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
-    
-    await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
-    setQuestDone(prev => ({ ...prev, chat: true }));
-
-    if (activeChatType === 'private') {
-      const currentMatch = matches.find(m => m.id === currentChatId);
-      const targetUid = currentMatch ? currentMatch.participants.find(id => id !== user.uid) : null;
-
-      if (targetUid) {
-        const currentUnread = currentMatch[`unread_${targetUid}`] || 0;
-
-        await setDoc(doc(db, 'matches', currentChatId), { 
-          lastUpdated: serverTimestamp(), 
-          lastSender: user.uid,
-          [`unread_${targetUid}`]: currentUnread + 1
-        }, { merge: true });
-      }
-    } else if (activeChatType === 'group_chat') {
-      await setDoc(doc(db, 'group_chats', currentChatId), { 
-        lastUpdated: serverTimestamp(), 
-        lastSender: user.uid 
-      }, { merge: true });
-    }
-  };
-
-  const handleAddEvent = async (e) => {
-    e.preventDefault();
-    if (!newEvent.title || !newEvent.date) return;
-    try {
-        const updatedSchedule = [...(myProfile.schedule || []), newEvent];
-        updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        await setDoc(doc(db, 'user_private', user.uid), {
-          schedule: updatedSchedule
-        }, { merge: true });
-
-        setNewEvent({ title: '', date: '', time: '' });
-        alert('เพิ่มนัดหมายแล้ว 📅');
-    } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
-  };
-
-  const createGroupRoom = async () => {
-    const roomName = newRoomName.trim();
-    if (!user || !roomName) {
-      alert('กรุณากรอกชื่อห้อง');
+    // 1. เช็กโดเมน มธ.
+    if (!cleanEmail.endsWith('@tu.ac.th') && !cleanEmail.endsWith('@mail.tu.ac.th')) {
+      alert('กรุณาใช้อีเมลมหาวิทยาลัยธรรมศาสตร์เท่านั้นเมี๊ยว! 🐾');
       return;
     }
 
     try {
-      const roomRef = await addDoc(collection(db, 'group_chats'), {
-        room_name: roomName,
-        createdBy: user.uid,
-        members: [user.uid],
-        createdAt: serverTimestamp()
-      });
+      if (isLoginMode) {
+        // ========== โหมดเข้าสู่ระบบ ==========
+        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
+        
+        // เช็กว่ากดยืนยันลิงก์ในอีเมลหรือยัง
+        if (!userCred.user.emailVerified) {
+          alert('กรุณาตรวจสอบตู้จดหมายอีเมลของคุณ และกดลิงก์ยืนยันตัวตนก่อนเข้าใช้งานเมี๊ยว! 📩');
+          await signOut(auth); // เตะออกถ้ายังไม่ยืนยัน
+          return;
+        }
+        alert('เข้าสู่ระบบสำเร็จ!');
+        
+      } else {
+        // ========== โหมดสมัครสมาชิก ==========
+        // เช็กช่องกรอกคณะและที่อยู่
+        if (!faculty.trim() || !address.trim()) {
+          alert('กรุณากรอกชื่อคณะและแถวที่อยู่ให้ครบถ้วนด้วยเมี๊ยว! 📝');
+          return;
+        }
 
-      setNewRoomName('');
-      setCurrentChatId(roomRef.id);
-      setActiveChatType('group_chat');
-    } catch (err) {
-      console.error(err);
-      alert('สร้างห้องไม่สำเร็จ');
+        // สร้างบัญชีใน Firebase Auth
+        const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+        const newUser = userCred.user;
+
+        // บันทึก คณะ และ ที่อยู่ ลง Firestore (คอลเล็กชัน users)
+        await setDoc(doc(db, 'users', newUser.uid), {
+          email: cleanEmail,
+          faculty: faculty.trim(),
+          address: address.trim(),
+          createdAt: new Date()
+        });
+
+        // ส่งลิงก์ยืนยันไปที่อีเมลจริง
+        await sendEmailVerification(newUser);
+        alert('สร้างบัญชีสำเร็จ! ระบบได้ส่งลิงก์ยืนยันไปที่อีเมล มธ. ของคุณแล้ว กรุณาเข้าไปกดยืนยันก่อนเข้าใช้งานเมี๊ยว 📩🐾');
+        
+        // บังคับออกจากระบบ และสลับกลับไปหน้าล็อกอินรอ
+        await signOut(auth);
+        setIsLoginMode(true);
+        
+        // เคลียร์ค่าในช่องกรอก
+        setEmail(''); setPassword(''); setFaculty(''); setAddress('');
+      }
+    } catch (err) { 
+      alert(err.message); 
     }
   };
 
-  const generateCategoryQuestion = (category) => {
-    const pool = ICEBREAKERS_BY_CATEGORY[category] || ICEBREAKERS_BY_CATEGORY.food;
-    let text = pool[Math.floor(Math.random() * pool.length)];
-
-    if (catVibe === 'polite') {
-      text = text + " ครับ/ค่ะ 😊";
-    } else if (catVibe === 'cat') {
-      text = text.replace("เหรอ", "ป่ะเมี๊ยว").replace("มั้ย", "รึเปล่าเมี๊ยว") + " 😼🐾";
-    }
-
-    setAiSuggestion(text);
-    setQuestDone(prev => ({ ...prev, practice: true }));
+  // --- ฟังก์ชันออกจากระบบ ---
+  const handleLogout = async () => {
+    await signOut(auth);
   };
 
-  const handleSmartReply = () => {
-    const replies = [
-      "ยินดีที่ได้รู้จักน้าา เรียนคณะอะไรเหรอ? 🎓",
-      "ช่วงนี้เรียนเป็นไงบ้าง ยุ่งมากมั้ย? 🐱",
-      "ว่างๆ ไปหาของกินแถวเชียงรากกันได้นะ 🍜",
-      "แมวตัวในรูปน่ารักจัง เลี้ยงเองรึเปล่าเมี๊ยว? 🐾"
-    ];
-    setInputText(replies[Math.floor(Math.random() * replies.length)]);
-  };
+  // ==========================================
+  // ส่วนหน้าจอ (UI)
+  // ==========================================
 
-  const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
-  const currentProfile = othersProfiles[0]; 
-
-  // --- UI Components ---
-  if (authLoading) return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-3">
-      <div className="text-6xl animate-bounce">🐱</div>
-      <div className="text-xl font-black">กำลังโหลดความกวน... 🐾</div>
-    </div>
-  );
-
-  if (!user) {
+  // ถ้าล็อกอินและยืนยันอีเมลแล้ว ให้แสดงหน้าหลัก
+  if (user) {
     return (
-      <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
-        <div className="absolute -top-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
-        <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
-
-        <div className="bg-white/95 backdrop-blur-md w-full rounded-[3rem] p-8 shadow-2xl border-4 border-black relative z-10">
-          <div className="text-center mb-6">
-            <div className="w-24 h-24 mx-auto mb-2 relative">
-              <div className="w-full h-full rounded-full bg-amber-100 border-2 border-black flex items-center justify-center overflow-hidden">
-                <span className="text-5xl">😼</span>
-              </div>
-            </div>
-            <h1 className="text-4xl font-black text-black tracking-tight flex items-center justify-center gap-2">
-              TINNTUU <span className="text-2xl">🐾</span>
-            </h1>
-            <p className="text-[11px] text-[#FF4500] font-extrabold uppercase tracking-widest mt-1">
-              Cat Speech Assistant TU Social
-            </p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-3">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="อีเมล (TU Email)" required />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="รหัสผ่าน" required />
-            <button type="submit" className="w-full bg-[#FF4500] hover:bg-[#E63946] text-white font-black py-4 rounded-3xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all mt-4 text-base">
-              {isLoginMode ? 'เข้าสู่ระบบ 🐾' : 'สร้างบัญชีทาสแมว 🐈'}
-            </button>
-          </form>
-
-          <button onClick={() => setIsLoginMode(!isLoginMode)} className="w-full text-center text-xs text-slate-600 font-extrabold mt-5 underline hover:text-[#FF4500]">
-            {isLoginMode ? 'ยังไม่มีบัญชี? สมัครที่นี่เมี๊ยว 🐾' : 'มีบัญชีแล้ว? เข้าสู่ระบบ'}
-          </button>
-        </div>
+      <div style={{ padding: '20px', textAlign: 'center' }}>
+        <h2>ยินดีต้อนรับเข้าสู่ระบบ! 🎉</h2>
+        <p>อีเมลของคุณ: {user.email}</p>
+        <button onClick={handleLogout} style={{ padding: '10px 20px', background: '#ff4d4f', color: '#fff', border: 'none', borderRadius: '5px' }}>
+          ออกจากระบบ
+        </button>
       </div>
     );
   }
 
-  const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
-
-  // กรองรายชื่อเพื่อนตามคำค้นหา
-  const filteredMatches = uniqueMatches.filter(otherUid => {
-    const otherProfile = allProfiles.find(p => p.uid === otherUid);
-    if (!otherProfile) return false;
-    const queryStr = chatSearchQuery.toLowerCase().trim();
-    return (
-      otherProfile.name.toLowerCase().includes(queryStr) ||
-      (otherProfile.faculty && otherProfile.faculty.toLowerCase().includes(queryStr)) ||
-      (otherProfile.location && otherProfile.location.toLowerCase().includes(queryStr))
-    );
-  });
-
-  // กรองรายชื่อห้องกลุ่มตามคำค้นหา
-  const filteredGroupRooms = groupRooms.filter(room => 
-    room.room_name && room.room_name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim())
-  );
-
+  // ถ้ายังไม่ล็อกอิน ให้แสดงหน้าฟอร์ม
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900">
+    <div style={{ padding: '20px', maxWidth: '400px', margin: 'auto', fontFamily: 'sans-serif' }}>
+      <h2>{isLoginMode ? 'เข้าสู่ระบบ 🔐' : 'สมัครสมาชิก 📝'}</h2>
       
-      {/* Header Blob Style */}
-      <header className="px-6 py-4 flex justify-between items-center sticky top-0 z-50 bg-gradient-to-r from-[#E63946] to-[#FF4500] border-b-2 border-black/20 shadow-md">
-        <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)]">
-          TINNTUU <span className="text-xl">😼</span>
-        </h1>
-        <div className="bg-amber-300 text-black px-4 py-1.5 rounded-full text-xs font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-          Speech Assistant 🐾
-        </div>
-      </header>
+      <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <input 
+          type="email" 
+          placeholder="อีเมล (@tu.ac.th หรือ @mail.tu.ac.th)" 
+          value={email} 
+          onChange={(e) => setEmail(e.target.value)} 
+          required 
+          style={{ padding: '10px' }}
+        />
+        <input 
+          type="password" 
+          placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" 
+          value={password} 
+          onChange={(e) => setPassword(e.target.value)} 
+          required 
+          style={{ padding: '10px' }}
+        />
 
-      {/* แจ้งเตือนข้อความใหม่ */}
-      {toastMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-black text-amber-300 px-6 py-3 rounded-full text-xs font-black shadow-2xl z-[100] border-2 border-white animate-bounce flex items-center gap-2">
-          <span>{toastMsg}</span>
-          <button onClick={() => setToastMsg(null)} className="ml-2 text-white hover:text-amber-300">✕</button>
-        </div>
-      )}
-
-      <main className="flex-1 overflow-y-auto px-4 pt-4">
-        {/* แท็บหาเพื่อน (Swipe) */}
-        {activeTab === 'swipe' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-white rounded-[2.5rem] p-4 flex gap-3 overflow-x-auto scrollbar-hide border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-              <div className="flex flex-col items-center gap-1 min-w-[65px]">
-                <div className="w-14 h-14 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl border-2 border-black flex items-center justify-center text-black text-2xl font-black shadow-sm">💬</div>
-                <span className="text-[9px] font-black text-slate-700">แมตช์ใหม่</span>
-              </div>
-              {uniqueMatches.map(otherUid => {
-                  const otherProfile = allProfiles.find(p => p.uid === otherUid);
-                  if(!otherProfile) return null;
-                  const targetMatch = matches.find(m => m.participants.includes(otherUid));
-                  return (
-                    <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[65px] cursor-pointer hover:scale-105 transition-transform">
-                      <img src={otherProfile.img} className="w-14 h-14 rounded-2xl object-cover border-2 border-black p-0.5 shadow-sm bg-amber-100" />
-                      <span className="text-[9px] font-black text-slate-800 truncate w-full text-center">{otherProfile.name.split(' ')[0]}</span>
-                    </div>
-                  )
-              })}
-            </div>
-
-            {currentProfile ? (
-              <div className="bg-white rounded-[3rem] p-4 pb-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col relative overflow-hidden">
-                <div className="absolute top-6 right-6 bg-amber-300 border-2 border-black text-black text-[10px] px-3.5 py-1 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  📍 {currentProfile.location}
-                </div>
-                <div className="w-full h-[360px] rounded-[2.5rem] border-2 border-black overflow-hidden mb-4 bg-slate-100">
-                  <img src={currentProfile.img} alt="profile" className="w-full h-full object-cover" />
-                </div>
-                <div className="px-2">
-                  <h2 className="text-2xl font-black text-black flex items-center gap-2">
-                    {currentProfile.name} <span className="text-lg">🐾</span>
-                  </h2>
-                  <p className="text-xs text-slate-600 font-bold mt-1 mb-4">{currentProfile.bio}</p>
-                  
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    <span className="bg-slate-100 border-2 border-black text-black font-black text-[10px] px-3 py-1 rounded-full">🎓 {currentProfile.faculty}</span>
-                    <span className="bg-orange-100 border-2 border-black text-[#FF4500] font-black text-[10px] px-3 py-1 rounded-full">🏷 {currentProfile.tags}</span>
-                  </div>
-
-                  <div className="flex gap-3">
-                    <button onClick={() => handleSwipe(currentProfile.uid, false)} className="flex-1 py-3.5 bg-slate-200 text-slate-700 border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                      ข้ามไปก่อน (Skip) 😼
-                    </button>
-                    <button onClick={() => handleSwipe(currentProfile.uid, true)} className="flex-1 py-3.5 bg-[#FF4500] hover:bg-[#E63946] text-white border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                      ถูกใจ (Match) 🐾
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-[3rem] p-10 text-center border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-                <div className="text-7xl mb-4">😼💤</div>
-                <h3 className="text-xl font-black text-black">หมดสต็อกแล้วเมี๊ยว!</h3>
-                <p className="text-xs text-slate-600 font-bold mt-2">คุณดูโปรไฟล์เพื่อนครบทุกคนแล้ว ไปพักทานข้าวก่อนนะ</p>
-              </div>
-            )}
-          </div>
+        {/* --- โชว์ 2 ช่องนี้ เฉพาะตอนสมัครสมาชิก --- */}
+        {!isLoginMode && (
+          <>
+            <input 
+              type="text" 
+              placeholder="ชื่อคณะ (เช่น วิศวกรรมศาสตร์)" 
+              value={faculty} 
+              onChange={(e) => setFaculty(e.target.value)} 
+              required 
+              style={{ padding: '10px' }}
+            />
+            <input 
+              type="text" 
+              placeholder="แถวที่อยู่ (เช่น หอพัก JPark)" 
+              value={address} 
+              onChange={(e) => setAddress(e.target.value)} 
+              required 
+              style={{ padding: '10px' }}
+            />
+          </>
         )}
 
-        {/* แท็บนัดหมาย (Schedule Blob UI) */}
-        {activeTab === 'schedule' && (
-          <div className="flex flex-col gap-4 h-full">
-            <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-slate-900">
-              <h2 className="text-xl font-black mb-4 flex items-center justify-between text-black">
-                <span>ตารางนัดหมาย 📅</span>
-              </h2>
-              
-              <form onSubmit={handleAddEvent} className="bg-orange-50 rounded-[2rem] p-4 border-2 border-black mb-6 flex flex-col gap-3">
-                <h3 className="font-black text-xs text-black">+ เพิ่มนัดหมายทาสแมว</h3>
-                <div className="flex gap-2">
-                    <input type="date" value={newEvent.date} onChange={e=>setNewEvent({...newEvent, date: e.target.value})} className="flex-1 bg-white border-2 border-black px-3 py-2 rounded-2xl text-xs font-bold outline-none" required/>
-                    <input type="time" value={newEvent.time} onChange={e=>setNewEvent({...newEvent, time: e.target.value})} className="w-24 bg-white border-2 border-black px-3 py-2 rounded-2xl text-xs font-bold outline-none" />
-                </div>
-                <input type="text" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} placeholder="ชื่อกิจกรรม (เช่น นัดกินชาบู)" className="bg-white border-2 border-black px-3 py-2 rounded-2xl text-xs font-bold outline-none" required/>
-                <button type="submit" className="bg-[#FF4500] text-white py-2.5 rounded-2xl border-2 border-black font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">บันทึกลงปฏิทิน 🐾</button>
-              </form>
+        <button type="submit" style={{ padding: '10px', background: '#1890ff', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+          {isLoginMode ? 'เข้าสู่ระบบ' : 'สมัครสมาชิก'}
+        </button>
+      </form>
 
-              <h3 className="font-black text-sm mb-3 text-black">กิจกรรมของคุณ</h3>
-              <div className="flex flex-col gap-3">
-                {(!myProfile.schedule || myProfile.schedule.length === 0) ? (
-                    <div className="text-center text-slate-400 text-xs py-4 font-bold">ยังไม่มีนัดหมายใหม่</div>
-                ) : (
-                    myProfile.schedule.map((event, idx) => (
-                        <div key={idx} className="bg-amber-50 border-2 border-black rounded-2xl p-3.5 flex items-center gap-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                            <div className="bg-[#FF4500] text-white w-12 h-12 rounded-xl border-2 border-black flex flex-col items-center justify-center shadow-sm">
-                                <span className="text-[9px] font-black">{new Date(event.date).toLocaleDateString('th-TH', { month: 'short'})}</span>
-                                <span className="text-sm font-black">{new Date(event.date).getDate()}</span>
-                            </div>
-                            <div>
-                                <h4 className="font-black text-sm text-black">{event.title}</h4>
-                                <p className="text-[10px] text-slate-600 font-bold mt-0.5">เวลา: {event.time || 'ตลอดวัน'}</p>
-                            </div>
-                        </div>
-                    ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* แท็บแชท + ช่องค้นหาเพื่อน (Search Bar) */}
-        {activeTab === 'chat' && (
-            <div className="bg-white rounded-[3rem] border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col h-[calc(100vh-180px)] relative">
-                <div className="flex p-2 bg-slate-100 border-b-2 border-black gap-2">
-                    <button onClick={() => setActiveChatType('list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'list' || activeChatType === 'private' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>คุยส่วนตัว</button>
-                    <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>ห้องกลุ่ม</button>
-                </div>
-
-                {/* --- ช่องค้นหาเพื่อน / ค้นหาห้องกลุ่ม --- */}
-                {(activeChatType === 'list' || activeChatType === 'group_list') && (
-                  <div className="p-3 bg-amber-50 border-b-2 border-black flex gap-2 items-center">
-                    <div className="relative flex-1">
-                      <input 
-                        type="text" 
-                        value={chatSearchQuery} 
-                        onChange={e => setChatSearchQuery(e.target.value)} 
-                        placeholder={activeChatType === 'list' ? "🔍 ค้นหาชื่อเพื่อน / คณะ..." : "🔍 ค้นหาชื่อห้องกลุ่ม..."} 
-                        className="w-full bg-white border-2 border-black px-4 py-2 rounded-full text-xs font-bold text-black focus:outline-none placeholder:text-slate-400"
-                      />
-                      {chatSearchQuery && (
-                        <button 
-                          onClick={() => setChatSearchQuery('')} 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black font-black text-xs"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {activeChatType === 'list' && (
-                    <div className="p-3 flex-1 overflow-y-auto">
-                        {uniqueMatches.length === 0 && (
-                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ยังไม่มีเพื่อนที่แมทช์ ไปปัดเพื่อนกันเมี๊ยว!</div>
-                        )}
-                        
-                        {uniqueMatches.length > 0 && filteredMatches.length === 0 && (
-                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ไม่พบเพื่อนชื่อ "{chatSearchQuery}" เมี๊ยว 😿</div>
-                        )}
-
-                        {filteredMatches.map(otherUid => {
-                            const otherProfile = allProfiles.find(p => p.uid === otherUid);
-                            if(!otherProfile) return null;
-                            const targetMatch = matches.find(m => m.participants.includes(otherUid));
-                            const unreadCount = targetMatch?.[`unread_${user.uid}`] || 0;
-
-                            return (
-                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-100 transition-colors border-b-2 border-slate-100 relative">
-                                    <img src={otherProfile.img} className="w-12 h-12 rounded-2xl object-cover border-2 border-black shadow-sm bg-amber-100" />
-                                    <div className="flex flex-col flex-1 truncate">
-                                      <span className="font-black text-sm text-black truncate">{otherProfile.name}</span>
-                                      <span className="text-[10px] font-bold text-slate-500 truncate">🎓 {otherProfile.faculty || 'ธรรมศาสตร์'} • 📍 {otherProfile.location || 'เชียงราก'}</span>
-                                    </div>
-                                    
-                                    {unreadCount > 0 && (
-                                        <div className="bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full border-2 border-black flex items-center justify-center shadow-sm animate-pulse">
-                                            {unreadCount > 99 ? '99+' : unreadCount}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
-                    </div>
-                )}
-                
-                {activeChatType === 'group_list' && (
-                    <div className="p-4 flex-1 overflow-y-auto flex flex-col">
-                        <div className="flex gap-2 mb-4">
-                            <input value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} placeholder="ชื่อห้องกลุ่ม" className="bg-slate-100 border-2 border-black px-4 py-2.5 rounded-full text-xs flex-1 outline-none font-bold text-black" />
-                            <button type="button" onClick={createGroupRoom} className="bg-[#FF4500] text-white border-2 border-black px-5 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">สร้าง</button>
-                        </div>
-                        <div className="flex-1 space-y-3">
-                            {filteredGroupRooms.length === 0 && chatSearchQuery && (
-                              <div className="text-center text-slate-400 mt-6 text-xs font-black">ไม่พบห้องกลุ่มชื่อ "{chatSearchQuery}"</div>
-                            )}
-                            {filteredGroupRooms.map(room => (
-                                <div key={room.id} className="border-2 border-black bg-amber-50 p-3.5 rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                                    <div className="flex justify-between items-center">
-                                        <h4 className="font-black text-black text-sm">{room.room_name}</h4>
-                                        <button onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="bg-[#FF4500] text-white font-black border border-black text-[10px] px-3 py-1.5 rounded-full">เข้าห้อง 🐾</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {(activeChatType === 'private' || activeChatType === 'group_chat') && (
-                    <div className="flex flex-col h-full bg-slate-50 absolute inset-0 z-20 rounded-[3rem] overflow-hidden">
-                        <div className="p-4 bg-white flex items-center justify-between border-b-2 border-black z-30">
-                            <button onClick={() => setActiveChatType(activeChatType === 'private' ? 'list' : 'group_list')} className="text-black font-black text-xl hover:text-[#FF4500]">&lt;</button>
-                            <span className="font-black text-sm text-[#FF4500]">{activeChatType === 'private' ? 'คุยส่วนตัว 🐾' : 'แชทกลุ่ม 👥'}</span>
-                            <span className="text-xl">😼</span>
-                        </div>
-                        
-                        <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 z-10 pb-4">
-                            {messages.map(m => (
-                                <div key={m.id} className={`max-w-[78%] p-3 text-xs font-bold rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${m.senderId === user.uid ? 'bg-[#FF4500] text-white self-end rounded-br-none' : 'bg-white text-black self-start rounded-bl-none'}`}>
-                                    {activeChatType === 'group_chat' && m.senderId !== user.uid && <div className="text-[9px] font-black text-amber-500 mb-0.5">{m.senderName}</div>}
-                                    {m.text}
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* แถบ Smart Reply Helper */}
-                        <div className="px-3 py-1.5 bg-amber-100 border-t-2 border-black flex justify-between items-center z-30">
-                            <span className="text-[10px] font-black text-black">💡 นึกคำตอบไม่ออก?</span>
-                            <button onClick={handleSmartReply} type="button" className="bg-white text-[#FF4500] border border-black px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm">
-                              สุ่มคำตอบเมี๊ยว 🐾
-                            </button>
-                        </div>
-
-                        <form onSubmit={sendMessage} className="p-3 pb-24 bg-white flex gap-2 items-center border-t-2 border-black z-30">
-                            <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 border-2 border-black px-4 py-3 rounded-full text-xs font-bold text-black focus:outline-none" placeholder="พิมพ์ข้อความ..." />
-                            <button type="submit" disabled={!inputText.trim()} className="bg-[#FF4500] border-2 border-black disabled:opacity-50 text-white w-10 h-10 rounded-full flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">➤</button>
-                        </form>
-                    </div>
-                )}
-            </div>
-        )}
-
-        {/* แท็บฝึกคุยกับบอทแมว + ภารกิจประจำวัน + เลือกหมวดหมู่ชวนคุย */}
-        {activeTab === 'practice' && (
-          <div className="flex flex-col gap-4">
-            <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <div className="text-center mb-4">
-                <div className="text-6xl mb-2">😼🎙️</div>
-                <h2 className="text-xl font-black text-black">ศูนย์ฝึกคุยกับบอทแมว</h2>
-                <p className="text-[10px] font-bold text-slate-500 mt-1">ตัวช่วยสลายความเกร็งสำหรับคนนึกคำชวนคุยไม่ออก</p>
-              </div>
-
-              {/* Daily Speaking Quest */}
-              <div className="bg-amber-100 border-2 border-black p-3.5 rounded-2xl mb-5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <h3 className="text-xs font-black text-black mb-2 flex items-center gap-1">🎯 ภารกิจฝึกคุยประจำวัน</h3>
-                <div className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-800">
-                  <div className="flex items-center gap-2">
-                    <span>{questDone.practice ? "✅" : "⚪"}</span>
-                    <span>ขอประโยคชวนคุยอย่างน้อย 1 ครั้ง</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span>{questDone.chat ? "✅" : "⚪"}</span>
-                    <span>ส่งแชททักทายเพื่อนใหม่ 1 ข้อความ</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Cat Vibe Selector */}
-              <div className="mb-4">
-                <label className="text-[10px] font-black text-black block mb-1">เลือกสไตล์การพูด (Cat Vibe):</label>
-                <div className="flex gap-2">
-                  {[
-                    { id: 'polite', label: 'สุภาพ 😊' },
-                    { id: 'friendly', label: 'เป็นกันเอง 👍' },
-                    { id: 'cat', label: 'กวนๆ ทาสแมว 😼' }
-                  ].map(vibe => (
-                    <button 
-                      key={vibe.id} 
-                      onClick={() => setCatVibe(vibe.id)}
-                      className={`flex-1 py-1.5 rounded-full text-[10px] font-black border-2 border-black transition-all ${catVibe === vibe.id ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-100 text-black'}`}
-                    >
-                      {vibe.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category Buttons */}
-              <div className="mb-4">
-                <label className="text-[10px] font-black text-black block mb-1">เลือกหมวดหมู่ที่อยากชวนคุย:</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => generateCategoryQuestion('food')} className="bg-orange-100 hover:bg-orange-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">🍜 ของกินเชียงราก</button>
-                  <button onClick={() => generateCategoryQuestion('study')} className="bg-amber-100 hover:bg-amber-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">📚 เรื่องเรียน/สอบ</button>
-                  <button onClick={() => generateCategoryQuestion('cat')} className="bg-red-100 hover:bg-red-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">🐾 เรื่องแมวประจำตึก</button>
-                </div>
-              </div>
-
-              {/* AI Suggestion Box */}
-              <div className="bg-slate-50 border-2 border-black p-4 rounded-3xl text-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <p className="text-xs text-black font-black min-h-[40px] flex items-center justify-center">
-                  {aiSuggestion || 'กดเลือกหมวดหมู่ปุ่มด้านบนเพื่อขอไอเดียประโยคชวนคุยเมี๊ยว'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* แท็บโปรไฟล์ (Profile Blob UI) */}
-        {activeTab === 'profile' && (
-          <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] pb-8">
-            <div className="text-center mb-6 border-b-2 border-black pb-6">
-              <div className="relative w-28 h-28 mx-auto mb-3">
-                <div className="w-full h-full bg-amber-100 rounded-3xl overflow-hidden border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                  <img src={myProfile.img || CAT_MASCOT} className="w-full h-full object-cover" />
-                </div>
-                <button 
-                  type="button" 
-                  onClick={() => fileInputRef.current.click()} 
-                  className="absolute bottom-0 right-0 bg-[#FF4500] text-white w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs font-black shadow-md"
-                >
-                  📷
-                </button>
-              </div>
-
-              <input type="file" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" className="hidden" />
-
-              <h2 className="text-2xl font-black text-black">{myProfile.name || 'ชื่อของคุณ'}</h2>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="flex flex-col gap-3.5 text-xs font-black">
-                <label className="text-[10px] text-slate-500 -mb-2 ml-2 font-bold">ชื่อเล่น</label>
-                <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none text-black" placeholder="ชื่อเล่น" required />
-                
-                <div className="flex gap-2">
-                    <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none text-black" placeholder="คณะ" />
-                    <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none text-black" placeholder="หอพัก" />
-                </div>
-                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none resize-none text-black" placeholder="Bio สั้นๆ" />
-                
-                <button type="submit" className="bg-[#FF4500] text-white border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-3">บันทึกตัวตน 🐾</button>
-                <button type="button" onClick={() => signOut(auth)} className="bg-slate-200 text-black border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">ออกจากระบบ</button>
-                
-                <button type="button" onClick={handleDeleteAccount} className="bg-red-100 text-red-600 border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-1">ลบบัญชีผู้ใช้ (Delete Account)</button>
-            </form>
-          </div>
-        )}
-      </main>
-
-      {/* Bottom Nav Blob Style */}
-      <div className="fixed bottom-3 inset-x-0 max-w-md mx-auto px-4 z-50">
-        <nav className="bg-white rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between p-1.5">
-          {[
-            { id: 'swipe', icon: '🐾', label: 'หาเพื่อน' },
-            { id: 'schedule', icon: '📅', label: 'นัดหมาย' },
-            { id: 'chat', icon: '💬', label: 'แชท' },
-            { id: 'practice', icon: '🎙️', label: 'ฝึกคุย' },
-            { id: 'profile', icon: '👤', label: 'โปรไฟล์' }
-          ].map(tab => (
-            <button 
-              key={tab.id} 
-              onClick={() => setActiveTab(tab.id)} 
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-full border-2 transition-all ${activeTab === tab.id ? 'bg-[#FF4500] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-105' : 'border-transparent text-slate-500'}`}
-            >
-              <span className="text-base leading-none mb-0.5">{tab.icon}</span>
-              <span className="text-[8px] font-black">{tab.label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
+      <button 
+        onClick={() => setIsLoginMode(!isLoginMode)} 
+        style={{ marginTop: '15px', width: '100%', padding: '10px', background: '#f0f0f0', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+      >
+        สลับไปหน้า {isLoginMode ? 'สมัครสมาชิก' : 'เข้าสู่ระบบ'}
+      </button>
     </div>
   );
 }
+
+export default App;
