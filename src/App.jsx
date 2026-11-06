@@ -86,9 +86,12 @@ export default function App() {
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
   
+  // States เพิ่มเติมสำหรับระบบค้นหาเพื่อน/ห้องแชท
+  const [chatSearchQuery, setChatSearchQuery] = useState('');
+
   // States สำหรับฟีเจอร์ช่วยพูด
   const [aiSuggestion, setAiSuggestion] = useState('');
-  const [catVibe, setCatVibe] = useState('friendly'); // polite | friendly | cat
+  const [catVibe, setCatVibe] = useState('friendly');
   const [toastMsg, setToastMsg] = useState(null);
   const [questDone, setQuestDone] = useState({ practice: false, chat: false });
 
@@ -365,7 +368,6 @@ export default function App() {
     }
   };
 
-  // ฟังก์ชันสุ่มประโยคฝึกคุยตามหมวดหมู่และระดับความกวน (Cat Vibe)
   const generateCategoryQuestion = (category) => {
     const pool = ICEBREAKERS_BY_CATEGORY[category] || ICEBREAKERS_BY_CATEGORY.food;
     let text = pool[Math.floor(Math.random() * pool.length)];
@@ -380,7 +382,6 @@ export default function App() {
     setQuestDone(prev => ({ ...prev, practice: true }));
   };
 
-  // Smart Reply ช่วยตอบในหน้าแชท
   const handleSmartReply = () => {
     const replies = [
       "ยินดีที่ได้รู้จักน้าา เรียนคณะอะไรเหรอ? 🎓",
@@ -440,6 +441,23 @@ export default function App() {
   }
 
   const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
+
+  // กรองรายชื่อเพื่อนตามคำค้นหา
+  const filteredMatches = uniqueMatches.filter(otherUid => {
+    const otherProfile = allProfiles.find(p => p.uid === otherUid);
+    if (!otherProfile) return false;
+    const queryStr = chatSearchQuery.toLowerCase().trim();
+    return (
+      otherProfile.name.toLowerCase().includes(queryStr) ||
+      (otherProfile.faculty && otherProfile.faculty.toLowerCase().includes(queryStr)) ||
+      (otherProfile.location && otherProfile.location.toLowerCase().includes(queryStr))
+    );
+  });
+
+  // กรองรายชื่อห้องกลุ่มตามคำค้นหา
+  const filteredGroupRooms = groupRooms.filter(room => 
+    room.room_name && room.room_name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim())
+  );
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900">
@@ -564,7 +582,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บแชท + Smart Reply */}
+        {/* แท็บแชท + ช่องค้นหาเพื่อน (Search Bar) */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[3rem] border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col h-[calc(100vh-180px)] relative">
                 <div className="flex p-2 bg-slate-100 border-b-2 border-black gap-2">
@@ -572,10 +590,40 @@ export default function App() {
                     <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>ห้องกลุ่ม</button>
                 </div>
 
+                {/* --- ช่องค้นหาเพื่อน / ค้นหาห้องกลุ่ม --- */}
+                {(activeChatType === 'list' || activeChatType === 'group_list') && (
+                  <div className="p-3 bg-amber-50 border-b-2 border-black flex gap-2 items-center">
+                    <div className="relative flex-1">
+                      <input 
+                        type="text" 
+                        value={chatSearchQuery} 
+                        onChange={e => setChatSearchQuery(e.target.value)} 
+                        placeholder={activeChatType === 'list' ? "🔍 ค้นหาชื่อเพื่อน / คณะ..." : "🔍 ค้นหาชื่อห้องกลุ่ม..."} 
+                        className="w-full bg-white border-2 border-black px-4 py-2 rounded-full text-xs font-bold text-black focus:outline-none placeholder:text-slate-400"
+                      />
+                      {chatSearchQuery && (
+                        <button 
+                          onClick={() => setChatSearchQuery('')} 
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black font-black text-xs"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {activeChatType === 'list' && (
                     <div className="p-3 flex-1 overflow-y-auto">
-                        {uniqueMatches.length === 0 && <div className="text-center text-slate-400 mt-10 text-xs font-black">ยังไม่มีเพื่อนที่แมทช์ ไปปัดเพื่อนกันเมี๊ยว!</div>}
-                        {uniqueMatches.map(otherUid => {
+                        {uniqueMatches.length === 0 && (
+                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ยังไม่มีเพื่อนที่แมทช์ ไปปัดเพื่อนกันเมี๊ยว!</div>
+                        )}
+                        
+                        {uniqueMatches.length > 0 && filteredMatches.length === 0 && (
+                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ไม่พบเพื่อนชื่อ "{chatSearchQuery}" เมี๊ยว 😿</div>
+                        )}
+
+                        {filteredMatches.map(otherUid => {
                             const otherProfile = allProfiles.find(p => p.uid === otherUid);
                             if(!otherProfile) return null;
                             const targetMatch = matches.find(m => m.participants.includes(otherUid));
@@ -584,7 +632,10 @@ export default function App() {
                             return (
                                 <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-100 transition-colors border-b-2 border-slate-100 relative">
                                     <img src={otherProfile.img} className="w-12 h-12 rounded-2xl object-cover border-2 border-black shadow-sm bg-amber-100" />
-                                    <span className="font-black text-sm text-black flex-1">{otherProfile.name}</span>
+                                    <div className="flex flex-col flex-1 truncate">
+                                      <span className="font-black text-sm text-black truncate">{otherProfile.name}</span>
+                                      <span className="text-[10px] font-bold text-slate-500 truncate">🎓 {otherProfile.faculty || 'ธรรมศาสตร์'} • 📍 {otherProfile.location || 'เชียงราก'}</span>
+                                    </div>
                                     
                                     {unreadCount > 0 && (
                                         <div className="bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full border-2 border-black flex items-center justify-center shadow-sm animate-pulse">
@@ -604,7 +655,10 @@ export default function App() {
                             <button type="button" onClick={createGroupRoom} className="bg-[#FF4500] text-white border-2 border-black px-5 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">สร้าง</button>
                         </div>
                         <div className="flex-1 space-y-3">
-                            {groupRooms.map(room => (
+                            {filteredGroupRooms.length === 0 && chatSearchQuery && (
+                              <div className="text-center text-slate-400 mt-6 text-xs font-black">ไม่พบห้องกลุ่มชื่อ "{chatSearchQuery}"</div>
+                            )}
+                            {filteredGroupRooms.map(room => (
                                 <div key={room.id} className="border-2 border-black bg-amber-50 p-3.5 rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                                     <div className="flex justify-between items-center">
                                         <h4 className="font-black text-black text-sm">{room.room_name}</h4>
