@@ -163,15 +163,10 @@ export default function App() {
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
 
-  // --- Auth Handlers (รวมระบบใหม่) ---
+  // --- Auth Handlers ---
   const handleAuth = async (e) => {
     e.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
-
-    if (!cleanEmail.endsWith('@tu.ac.th') && !cleanEmail.endsWith('@mail.tu.ac.th')) {
-      alert('กรุณาใช้อีเมลมหาวิทยาลัยธรรมศาสตร์เท่านั้นเมี๊ยว! 🐾');
-      return;
-    }
 
     try {
       if (isLoginMode) {
@@ -206,7 +201,7 @@ export default function App() {
         await setDoc(doc(db, 'user_private', newUser.uid), { swiped: [], schedule: [] });
 
         await sendEmailVerification(newUser);
-        alert('สร้างบัญชีสำเร็จ! ระบบได้ส่งลิงก์ยืนยันไปที่อีเมล มธ. ของคุณแล้ว กรุณาเข้าไปกดยืนยันตัวตนก่อนเข้าใช้งานเมี๊ยว 📩🐾');
+        alert('สร้างบัญชีสำเร็จ! ระบบได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว กรุณาเข้าไปกดยืนยันตัวตนก่อนเข้าใช้งานเมี๊ยว 📩🐾');
         
         await signOut(auth);
         setIsLoginMode(true);
@@ -342,7 +337,7 @@ export default function App() {
       <div className="bg-white rounded-[2rem] p-6 border-4 border-black max-w-sm w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[85vh] overflow-y-auto">
         <h2 className="text-2xl font-black mb-4 flex items-center gap-2">📖 คู่มือ TINNTUU</h2>
         <ul className="text-xs space-y-3 font-bold text-slate-700">
-           <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>1. การเข้าระบบ:</b> ใช้อีเมล @tu.ac.th เท่านั้น และต้องกดยืนยันในกล่องจดหมายอีเมลก่อนเข้าใช้งาน</li>
+           <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>1. การเข้าระบบ:</b> ใช้อีเมลของคุณสมัครได้เลย และต้องกดยืนยันในกล่องจดหมายอีเมลก่อนเข้าใช้งาน</li>
            <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>2. หาเพื่อน:</b> ปัดถูกใจ (Match) หรือข้ามเพื่อนที่ระบบแนะนำได้</li>
            <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>3. ระบบแชท:</b> เมื่อใจตรงกันสามารถแชทส่วนตัว หรือจะไปจอยห้องคุยกลุ่มก็ได้</li>
            <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>4. บอทฝึกคุย:</b> บอทแมวพร้อมชงประโยคชวนคุยแก้เขินในแท็บไมค์</li>
@@ -350,7 +345,7 @@ export default function App() {
         
         <div className="mt-5 pt-4 border-t-2 border-black bg-amber-50 p-3 rounded-2xl">
           <p className="font-black text-sm mb-2 text-[#FF4500]">🛠 พบปัญหาการใช้งาน ติดต่อแอดมิน:</p>
-          <p className="text-xs font-bold">📧 อีเมล: Anchayanit.poo@dome.ac.th</p>
+          <p className="text-xs font-bold">📧 อีเมล: Anchayanit.poo@dome.tu.ac.th</p>
           <p className="text-xs font-bold">📞 โทร: 0979981570</p>
           <p className="text-xs font-bold text-green-600">💬 LINE: @tinntuu_support</p>
         </div>
@@ -373,8 +368,8 @@ export default function App() {
           </div>
 
           <form onSubmit={handleAuth} className="space-y-3">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="อีเมล (@tu.ac.th / @mail.tu.ac.th)" required />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="รหัสผ่าน" required />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="อีเมลของคุณ" required />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" required />
             
             {/* ช่องกรอกเพิ่มเติมสำหรับการสมัครสมาชิก */}
             {!isLoginMode && (
