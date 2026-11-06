@@ -3,8 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField
+  enableIndexedDbPersistence, where, updateDoc, arrayUnion
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -38,7 +37,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('swipe'); 
   const [allProfiles, setAllProfiles] = useState([]);
   
-  // State สำหรับเก็บรายชื่อคนที่ถูกปัดไปแล้วในฝั่ง Client ทันที (ป้องกันการโชว์ซ้ำ)
+  // State สำหรับเก็บรายชื่อคนที่ถูกปัดไปแล้วในฝั่ง Client ทันที
   const [localSwiped, setLocalSwiped] = useState([]);
 
   const [myProfile, setMyProfile] = useState({ 
@@ -78,27 +77,17 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-const unsubProfiles = onSnapshot(
-  query(collection(db, 'users'), limit(100)),
-  snapshot => {
-    const profiles = snapshot.docs.map(d => ({
-      id: d.id,
-      ...d.data()
-    }));
-
-    setAllProfiles(profiles);
-    const myDoc = profiles.find(p => p.uid === user.uid);
-
-    if (myDoc) {
-      setMyProfile(prev => ({ ...prev, ...myDoc }));
-      setHasProfile(true);
-    } else {
-      setHasProfile(false);
-      setActiveTab('profile');
-    }
-  },
-  error => console.error('โหลดโปรไฟล์ไม่สำเร็จ:', error)
-);
+    const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), (snapshot) => {
+      const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAllProfiles(profiles);
+      const myDoc = profiles.find(p => p.uid === user.uid);
+      if (myDoc) { 
+        setMyProfile({swiped: [], schedule: [], ...myDoc}); 
+        setHasProfile(true); 
+        if (myDoc.swiped) setLocalSwiped(myDoc.swiped);
+      } 
+      else { setHasProfile(false); setActiveTab('profile'); }
+    });
 
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -123,31 +112,6 @@ const unsubProfiles = onSnapshot(
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChatType]);
-  
-useEffect(() => {
-  if (!user) {
-    setLocalSwiped([]);
-    setMyProfile(prev => ({ ...prev, swiped: [], schedule: [] }));
-    return;
-  }
-
-  const unsub = onSnapshot(
-    doc(db, 'user_private', user.uid),
-    snapshot => {
-      const data = snapshot.exists() ? snapshot.data() : {};
-      const swiped = data.swiped || [];
-      setLocalSwiped(swiped);
-      setMyProfile(prev => ({
-        ...prev,
-        swiped,
-        schedule: data.schedule || []
-      }));
-    },
-    error => console.error('โหลดข้อมูลส่วนตัวไม่สำเร็จ:', error)
-  );
-
-  return () => unsub();
-}, [user]);
 
   // --- Handlers ---
   const handleAuth = async (e) => {
@@ -170,11 +134,9 @@ useEffect(() => {
     }
   };
 
-  // ฟังก์ชันเลือกไฟล์รูปภาพจากเครื่อง
   const handleImageFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      // แปลงไฟล์เป็น Base64 Data URL เพื่อแสดงผลและบันทึกลง Firestore
       const reader = new FileReader();
       reader.onloadend = () => {
         setMyProfile(prev => ({ ...prev, img: reader.result }));
@@ -184,65 +146,41 @@ useEffect(() => {
   };
 
   const handleSaveProfile = async (e) => {
-  e.preventDefault();
-  if (!user || !myProfile.name.trim()) return;
+    e.preventDefault();
+    if (!myProfile.name.trim()) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { ...myProfile, uid: user.uid, updatedAt: serverTimestamp() }, { merge: true });
+      if (!hasProfile) setActiveTab('swipe');
+      setHasProfile(true);
+      alert('บันทึกโปรไฟล์สำเร็จ 🐾');
+    } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
+  };
 
-  try {
-    await setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      name: myProfile.name.trim(),
-      faculty: myProfile.faculty || '',
-      location: myProfile.location || '',
-      bio: myProfile.bio || '',
-      img: myProfile.img || '',
-      tags: myProfile.tags || '',
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    // สร้างเอกสารส่วนตัวแยกต่างหาก ไม่เปิดเผยให้ผู้ใช้อื่นอ่าน
-    await setDoc(doc(db, 'user_private', user.uid), {
-      swiped: myProfile.swiped || [],
-      schedule: myProfile.schedule || []
-    }, { merge: true });
-
-    setHasProfile(true);
-    setActiveTab('swipe');
-    alert('บันทึกโปรไฟล์สำเร็จ 🐾');
-  } catch (err) {
-    console.error(err);
-    alert('บันทึกโปรไฟล์ไม่สำเร็จ');
-  }
-};
-
-  // ฟังก์ชันปัด (แก้ให้ตัดคนที่ปัดแล้วออกจากหน้าจอทันที ไม่ซ้ำแน่นอน)
+  // ป้องกันการสร้าง Match ซ้ำ และตัดคนที่ปัดแล้วออกจากหน้าจอทันที
   const handleSwipe = async (targetUid, isLike) => {
-  if (!user || !targetUid || targetUid === user.uid) return;
+    try {
+      setLocalSwiped(prev => [...prev, targetUid]);
+      await updateDoc(doc(db, 'users', user.uid), { swiped: arrayUnion(targetUid) });
 
-  try {
-    setLocalSwiped(prev =>
-      prev.includes(targetUid) ? prev : [...prev, targetUid]
-    );
+      if (isLike) {
+        // เช็กก่อนว่ามี Match กับคนนี้อยู่แล้วหรือไม่
+        const existingMatch = matches.find(m => m.participants.includes(targetUid));
+        
+        let matchId = existingMatch?.id;
+        if (!matchId) {
+          const newMatchRef = await addDoc(collection(db, 'matches'), { 
+            participants: [user.uid, targetUid], 
+            matchedAt: serverTimestamp() 
+          });
+          matchId = newMatchRef.id;
+        }
 
-    await setDoc(doc(db, 'user_private', user.uid), {
-      swiped: arrayUnion(targetUid)
-    }, { merge: true });
-
-    if (isLike) {
-      const matchRef = await addDoc(collection(db, 'matches'), {
-        participants: [user.uid, targetUid],
-        matchedAt: serverTimestamp()
-      });
-
-      setCurrentChatId(matchRef.id);
-      setActiveChatType('private');
-      setActiveTab('chat');
-    }
-  } catch (err) {
-    console.error(err);
-    setLocalSwiped(prev => prev.filter(id => id !== targetUid));
-    alert('ระบบปัดขัดข้อง กรุณาลองใหม่');
-  }
-};
+        setCurrentChatId(matchId);
+        setActiveChatType('private');
+        setActiveTab('chat');
+      }
+    } catch (err) { alert("ระบบปัดขัดข้อง กรุณาลองใหม่"); }
+  };
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -259,9 +197,9 @@ useEffect(() => {
         const updatedSchedule = [...(myProfile.schedule || []), newEvent];
         updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        await setDoc(doc(db, 'user_private', user.uid), {
-  schedule: updatedSchedule
-}, { merge: true });
+        await updateDoc(doc(db, 'users', user.uid), { schedule: updatedSchedule });
+        setNewEvent({ title: '', date: '', time: '' });
+        alert('เพิ่มนัดหมายแล้ว 📅');
     } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
   };
 
@@ -270,7 +208,6 @@ useEffect(() => {
     setAiSuggestion(questions[Math.floor(Math.random() * questions.length)]);
   };
 
-  // คัดกรองโปรไฟล์: ต้องไม่ใช่ตัวเอง และต้องไม่อยู่ใน localSwiped (คนที่เคยปัดไปแล้ว)
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
   const currentProfile = othersProfiles[0]; 
 
@@ -301,6 +238,9 @@ useEffect(() => {
     );
   }
 
+  // ดึงรายชื่อเพื่อนคู่สนทนาที่ไม่ซ้ำกันสำหรับแสดงรายการแชท
+  const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
+
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-red-600 via-[#FF4500] to-orange-500 flex flex-col font-sans pb-[85px] relative">
       <header className="px-6 py-5 flex justify-between items-center sticky top-0 z-50 bg-transparent">
@@ -322,12 +262,12 @@ useEffect(() => {
                 <div className="w-14 h-14 bg-gradient-to-br from-[#FF4500] to-[#FF7043] rounded-full flex items-center justify-center text-white text-2xl shadow-sm">💬</div>
                 <span className="text-[9px] font-bold text-slate-600">เพื่อนใหม่</span>
               </div>
-              {matches.map(m => {
-                  const otherUid = m.participants.find(uid => uid !== user.uid);
+              {uniqueMatches.map(otherUid => {
                   const otherProfile = allProfiles.find(p => p.uid === otherUid);
                   if(!otherProfile) return null;
+                  const targetMatch = matches.find(m => m.participants.includes(otherUid));
                   return (
-                    <div key={m.id} onClick={() => { setCurrentChatId(m.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform">
+                    <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform">
                       <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover border-2 border-[#FF4500] p-0.5 shadow-sm" />
                       <span className="text-[9px] font-bold text-slate-800 truncate w-full text-center">{otherProfile.name.split(' ')[0]}</span>
                     </div>
@@ -410,7 +350,7 @@ useEffect(() => {
           </div>
         )}
 
-        {/* แท็บแชท */}
+        {/* แท็บแชท (กรองการซ้ำซ้อนเรียบร้อยแล้ว) */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-170px)] shadow-xl relative">
                 <div className="flex p-2 bg-slate-50 gap-2 border-b border-slate-100">
@@ -420,13 +360,17 @@ useEffect(() => {
 
                 {activeChatType === 'list' && (
                     <div className="p-2 flex-1 overflow-y-auto">
-                        {matches.length === 0 && <div className="text-center text-slate-400 mt-10 text-xs font-bold">ยังไม่มีเพื่อนที่แมทช์ ลองไปปัดเพื่อนดูนะ!</div>}
-                        {matches.map(m => {
-                            const otherUid = m.participants.find(uid => uid !== user.uid);
+                        {uniqueMatches.length === 0 && <div className="text-center text-slate-400 mt-10 text-xs font-bold">ยังไม่มีเพื่อนที่แมทช์ ลองไปปัดเพื่อนดูนะ!</div>}
+                        {uniqueMatches.map(otherUid => {
                             const otherProfile = allProfiles.find(p => p.uid === otherUid);
                             if(!otherProfile) return null;
+                            const targetMatch = matches.find(m => m.participants.includes(otherUid));
                             return (
-                                <div key={m.id} onClick={() => { setCurrentChatId(m.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors">
+                                <div 
+                                  key={otherUid} 
+                                  onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} 
+                                  className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors border-b border-slate-50"
+                                >
                                     <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100" />
                                     <span className="font-black text-sm text-slate-800">{otherProfile.name}</span>
                                 </div>
@@ -497,12 +441,10 @@ useEffect(() => {
           </div>
         )}
 
-        {/* แท็บโปรไฟล์ (อัปโหลดรูปจากเครื่องได้แล้ว) */}
+        {/* แท็บโปรไฟล์ */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[2.5rem] p-6 shadow-xl pb-8">
             <div className="text-center mb-6 border-b border-slate-100 pb-6">
-              
-              {/* รูปโปรไฟล์ + ปุ่มเปลี่ยนรูป */}
               <div className="relative w-28 h-28 mx-auto mb-3">
                 <div className="w-full h-full bg-[#FF4500]/10 rounded-[2rem] overflow-hidden shadow-inner border-2 border-[#FF4500]">
                   {myProfile.img ? <img src={myProfile.img} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-4xl">🐱</div>}
@@ -516,7 +458,6 @@ useEffect(() => {
                 </button>
               </div>
 
-              {/* Input ซ่อนสำหรับเลือกรูปภาพ */}
               <input 
                 type="file" 
                 ref={fileInputRef} 
