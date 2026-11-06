@@ -27,10 +27,8 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
-// รูปน้องแมวขาวสุดกวนสำหรับธีม
 const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
 
-// ค่าเริ่มต้นสำหรับโปรไฟล์ใหม่
 const DEFAULT_PROFILE = {
   name: '', 
   faculty: 'ธรรมศาสตร์', 
@@ -42,7 +40,6 @@ const DEFAULT_PROFILE = {
   schedule: []
 };
 
-// ไอเดียประโยคชวนคุยแยกตามหมวดหมู่ มธ.
 const ICEBREAKERS_BY_CATEGORY = {
   food: [
     "ช่วงนี้มีร้านชาบูเด็ดๆ แถวเชียงรากแนะนำมั้ย?",
@@ -62,7 +59,6 @@ const ICEBREAKERS_BY_CATEGORY = {
 };
 
 export default function App() {
-  // --- States ---
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isLoginMode, setIsLoginMode] = useState(true);
@@ -72,12 +68,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('swipe'); 
   const [allProfiles, setAllProfiles] = useState([]);
   const [localSwiped, setLocalSwiped] = useState([]);
-
   const [myProfile, setMyProfile] = useState(DEFAULT_PROFILE);
   const [hasProfile, setHasProfile] = useState(false);
-
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
-
   const [matches, setMatches] = useState([]);
   const [activeChatType, setActiveChatType] = useState('list'); 
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -85,20 +78,21 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
-  
-  // States เพิ่มเติมสำหรับระบบค้นหาเพื่อน/ห้องแชท
   const [chatSearchQuery, setChatSearchQuery] = useState('');
 
-  // States สำหรับฟีเจอร์ช่วยพูด
   const [aiSuggestion, setAiSuggestion] = useState('');
   const [catVibe, setCatVibe] = useState('friendly');
   const [toastMsg, setToastMsg] = useState(null);
   const [questDone, setQuestDone] = useState({ practice: false, chat: false });
 
+  // --- States สำหรับคู่มือและแจ้งปัญหา ---
+  const [showManual, setShowManual] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reportText, setReportText] = useState('');
+
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // --- Effects ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -107,7 +101,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // โหลดข้อมูล Public
   useEffect(() => {
     if (!user) return;
     const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), snapshot => {
@@ -154,14 +147,12 @@ export default function App() {
     return () => { unsubProfiles(); unsubMatches(); unsubGroups(); };
   }, [user]);
 
-  // โหลดข้อมูล Private
   useEffect(() => {
     if (!user) {
       setLocalSwiped([]);
       setMyProfile(DEFAULT_PROFILE);
       return;
     }
-
     const unsub = onSnapshot(doc(db, 'user_private', user.uid), snapshot => {
       const data = snapshot.exists() ? snapshot.data() : {};
       const swiped = data.swiped || [];
@@ -172,11 +163,9 @@ export default function App() {
         schedule: data.schedule || []
       }));
     }, error => console.error('โหลดข้อมูลส่วนตัวไม่สำเร็จ:', error));
-
     return () => unsub();
   }, [user]);
 
-  // โหลดข้อความแชท
   useEffect(() => {
     if (!user || !currentChatId || (activeChatType !== 'private' && activeChatType !== 'group_chat')) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -186,7 +175,6 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // รีเซ็ตจำนวนข้อความอ่านแล้วเป็น 0
   useEffect(() => {
     if (user && currentChatId && activeChatType === 'private') {
       setDoc(doc(db, 'matches', currentChatId), {
@@ -199,7 +187,6 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChatType]);
 
-  // --- Handlers ---
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
@@ -224,7 +211,6 @@ export default function App() {
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!user || !myProfile.name.trim()) return;
-
     try {
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
@@ -273,10 +259,8 @@ export default function App() {
 
   const handleSwipe = async (targetUid, isLike) => {
     if (!user || !targetUid || targetUid === user.uid) return;
-
     try {
       setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
-
       await setDoc(doc(db, 'user_private', user.uid), {
         swiped: arrayUnion(targetUid)
       }, { merge: true });
@@ -286,7 +270,6 @@ export default function App() {
           participants: [user.uid, targetUid],
           matchedAt: serverTimestamp()
         });
-
         setCurrentChatId(matchRef.id);
         setActiveChatType('private');
         setActiveTab('chat');
@@ -310,10 +293,8 @@ export default function App() {
     if (activeChatType === 'private') {
       const currentMatch = matches.find(m => m.id === currentChatId);
       const targetUid = currentMatch ? currentMatch.participants.find(id => id !== user.uid) : null;
-
       if (targetUid) {
         const currentUnread = currentMatch[`unread_${targetUid}`] || 0;
-
         await setDoc(doc(db, 'matches', currentChatId), { 
           lastUpdated: serverTimestamp(), 
           lastSender: user.uid,
@@ -350,7 +331,6 @@ export default function App() {
       alert('กรุณากรอกชื่อห้อง');
       return;
     }
-
     try {
       const roomRef = await addDoc(collection(db, 'group_chats'), {
         room_name: roomName,
@@ -358,7 +338,6 @@ export default function App() {
         members: [user.uid],
         createdAt: serverTimestamp()
       });
-
       setNewRoomName('');
       setCurrentChatId(roomRef.id);
       setActiveChatType('group_chat');
@@ -371,13 +350,8 @@ export default function App() {
   const generateCategoryQuestion = (category) => {
     const pool = ICEBREAKERS_BY_CATEGORY[category] || ICEBREAKERS_BY_CATEGORY.food;
     let text = pool[Math.floor(Math.random() * pool.length)];
-
-    if (catVibe === 'polite') {
-      text = text + " ครับ/ค่ะ 😊";
-    } else if (catVibe === 'cat') {
-      text = text.replace("เหรอ", "ป่ะเมี๊ยว").replace("มั้ย", "รึเปล่าเมี๊ยว") + " 😼🐾";
-    }
-
+    if (catVibe === 'polite') text = text + " ครับ/ค่ะ 😊";
+    else if (catVibe === 'cat') text = text.replace("เหรอ", "ป่ะเมี๊ยว").replace("มั้ย", "รึเปล่าเมี๊ยว") + " 😼🐾";
     setAiSuggestion(text);
     setQuestDone(prev => ({ ...prev, practice: true }));
   };
@@ -392,10 +366,29 @@ export default function App() {
     setInputText(replies[Math.floor(Math.random() * replies.length)]);
   };
 
+  // --- ฟังก์ชันสำหรับส่งรายงานปัญหา ---
+  const handleReportSubmit = async (e) => {
+    e.preventDefault();
+    if (!reportText.trim()) return;
+    try {
+      await addDoc(collection(db, 'reports'), {
+        uid: user.uid,
+        name: myProfile.name || 'Anonymous',
+        text: reportText,
+        createdAt: serverTimestamp()
+      });
+      setReportText('');
+      setShowReport(false);
+      alert('ส่งข้อเสนอแนะให้ผู้พัฒนาเรียบร้อยแล้ว เมี๊ยว! ขอบคุณมากครับ 🐾');
+    } catch (error) {
+      console.error(error);
+      alert('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่');
+    }
+  };
+
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
   const currentProfile = othersProfiles[0]; 
 
-  // --- UI Components ---
   if (authLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-3">
       <div className="text-6xl animate-bounce">🐱</div>
@@ -408,7 +401,6 @@ export default function App() {
       <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
         <div className="absolute -top-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
         <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
-
         <div className="bg-white/95 backdrop-blur-md w-full rounded-[3rem] p-8 shadow-2xl border-4 border-black relative z-10">
           <div className="text-center mb-6">
             <div className="w-24 h-24 mx-auto mb-2 relative">
@@ -423,7 +415,6 @@ export default function App() {
               Cat Speech Assistant TU Social
             </p>
           </div>
-
           <form onSubmit={handleAuth} className="space-y-3">
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="อีเมล (TU Email)" required />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="รหัสผ่าน" required />
@@ -431,7 +422,6 @@ export default function App() {
               {isLoginMode ? 'เข้าสู่ระบบ 🐾' : 'สร้างบัญชีทาสแมว 🐈'}
             </button>
           </form>
-
           <button onClick={() => setIsLoginMode(!isLoginMode)} className="w-full text-center text-xs text-slate-600 font-extrabold mt-5 underline hover:text-[#FF4500]">
             {isLoginMode ? 'ยังไม่มีบัญชี? สมัครที่นี่เมี๊ยว 🐾' : 'มีบัญชีแล้ว? เข้าสู่ระบบ'}
           </button>
@@ -441,8 +431,6 @@ export default function App() {
   }
 
   const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
-
-  // กรองรายชื่อเพื่อนตามคำค้นหา
   const filteredMatches = uniqueMatches.filter(otherUid => {
     const otherProfile = allProfiles.find(p => p.uid === otherUid);
     if (!otherProfile) return false;
@@ -453,22 +441,25 @@ export default function App() {
       (otherProfile.location && otherProfile.location.toLowerCase().includes(queryStr))
     );
   });
-
-  // กรองรายชื่อห้องกลุ่มตามคำค้นหา
   const filteredGroupRooms = groupRooms.filter(room => 
     room.room_name && room.room_name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim())
   );
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900">
+    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900 overflow-x-hidden">
       
-      {/* Header Blob Style */}
-      <header className="px-6 py-4 flex justify-between items-center sticky top-0 z-50 bg-gradient-to-r from-[#E63946] to-[#FF4500] border-b-2 border-black/20 shadow-md">
+      {/* Header อัปเดตใหม่ เพิ่มปุ่มคู่มือและแจ้งปัญหา */}
+      <header className="px-5 py-4 flex justify-between items-center sticky top-0 z-40 bg-gradient-to-r from-[#E63946] to-[#FF4500] border-b-2 border-black/20 shadow-md">
         <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)]">
           TINNTUU <span className="text-xl">😼</span>
         </h1>
-        <div className="bg-amber-300 text-black px-4 py-1.5 rounded-full text-xs font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-          Speech Assistant 🐾
+        <div className="flex gap-2">
+          <button onClick={() => setShowManual(true)} className="bg-amber-300 text-black px-2.5 py-1.5 rounded-full text-[10px] font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform flex items-center gap-1">
+            📖 คู่มือ
+          </button>
+          <button onClick={() => setShowReport(true)} className="bg-white text-black px-2.5 py-1.5 rounded-full text-[10px] font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform flex items-center gap-1">
+            🐞 แจ้งปัญหา
+          </button>
         </div>
       </header>
 
@@ -582,7 +573,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บแชท + ช่องค้นหาเพื่อน (Search Bar) */}
+        {/* แท็บแชท */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[3rem] border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col h-[calc(100vh-180px)] relative">
                 <div className="flex p-2 bg-slate-100 border-b-2 border-black gap-2">
@@ -590,7 +581,6 @@ export default function App() {
                     <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>ห้องกลุ่ม</button>
                 </div>
 
-                {/* --- ช่องค้นหาเพื่อน / ค้นหาห้องกลุ่ม --- */}
                 {(activeChatType === 'list' || activeChatType === 'group_list') && (
                   <div className="p-3 bg-amber-50 border-b-2 border-black flex gap-2 items-center">
                     <div className="relative flex-1">
@@ -602,12 +592,7 @@ export default function App() {
                         className="w-full bg-white border-2 border-black px-4 py-2 rounded-full text-xs font-bold text-black focus:outline-none placeholder:text-slate-400"
                       />
                       {chatSearchQuery && (
-                        <button 
-                          onClick={() => setChatSearchQuery('')} 
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black font-black text-xs"
-                        >
-                          ✕
-                        </button>
+                        <button onClick={() => setChatSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-black font-black text-xs">✕</button>
                       )}
                     </div>
                   </div>
@@ -615,20 +600,13 @@ export default function App() {
 
                 {activeChatType === 'list' && (
                     <div className="p-3 flex-1 overflow-y-auto">
-                        {uniqueMatches.length === 0 && (
-                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ยังไม่มีเพื่อนที่แมทช์ ไปปัดเพื่อนกันเมี๊ยว!</div>
-                        )}
-                        
-                        {uniqueMatches.length > 0 && filteredMatches.length === 0 && (
-                          <div className="text-center text-slate-400 mt-10 text-xs font-black">ไม่พบเพื่อนชื่อ "{chatSearchQuery}" เมี๊ยว 😿</div>
-                        )}
-
+                        {uniqueMatches.length === 0 && <div className="text-center text-slate-400 mt-10 text-xs font-black">ยังไม่มีเพื่อนที่แมทช์ ไปปัดเพื่อนกันเมี๊ยว!</div>}
+                        {uniqueMatches.length > 0 && filteredMatches.length === 0 && <div className="text-center text-slate-400 mt-10 text-xs font-black">ไม่พบเพื่อนชื่อ "{chatSearchQuery}" เมี๊ยว 😿</div>}
                         {filteredMatches.map(otherUid => {
                             const otherProfile = allProfiles.find(p => p.uid === otherUid);
                             if(!otherProfile) return null;
                             const targetMatch = matches.find(m => m.participants.includes(otherUid));
                             const unreadCount = targetMatch?.[`unread_${user.uid}`] || 0;
-
                             return (
                                 <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-100 transition-colors border-b-2 border-slate-100 relative">
                                     <img src={otherProfile.img} className="w-12 h-12 rounded-2xl object-cover border-2 border-black shadow-sm bg-amber-100" />
@@ -636,7 +614,6 @@ export default function App() {
                                       <span className="font-black text-sm text-black truncate">{otherProfile.name}</span>
                                       <span className="text-[10px] font-bold text-slate-500 truncate">🎓 {otherProfile.faculty || 'ธรรมศาสตร์'} • 📍 {otherProfile.location || 'เชียงราก'}</span>
                                     </div>
-                                    
                                     {unreadCount > 0 && (
                                         <div className="bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full border-2 border-black flex items-center justify-center shadow-sm animate-pulse">
                                             {unreadCount > 99 ? '99+' : unreadCount}
@@ -655,9 +632,7 @@ export default function App() {
                             <button type="button" onClick={createGroupRoom} className="bg-[#FF4500] text-white border-2 border-black px-5 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">สร้าง</button>
                         </div>
                         <div className="flex-1 space-y-3">
-                            {filteredGroupRooms.length === 0 && chatSearchQuery && (
-                              <div className="text-center text-slate-400 mt-6 text-xs font-black">ไม่พบห้องกลุ่มชื่อ "{chatSearchQuery}"</div>
-                            )}
+                            {filteredGroupRooms.length === 0 && chatSearchQuery && <div className="text-center text-slate-400 mt-6 text-xs font-black">ไม่พบห้องกลุ่มชื่อ "{chatSearchQuery}"</div>}
                             {filteredGroupRooms.map(room => (
                                 <div key={room.id} className="border-2 border-black bg-amber-50 p-3.5 rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                                     <div className="flex justify-between items-center">
@@ -688,7 +663,6 @@ export default function App() {
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {/* แถบ Smart Reply Helper */}
                         <div className="px-3 py-1.5 bg-amber-100 border-t-2 border-black flex justify-between items-center z-30">
                             <span className="text-[10px] font-black text-black">💡 นึกคำตอบไม่ออก?</span>
                             <button onClick={handleSmartReply} type="button" className="bg-white text-[#FF4500] border border-black px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm">
@@ -705,7 +679,7 @@ export default function App() {
             </div>
         )}
 
-        {/* แท็บฝึกคุยกับบอทแมว + ภารกิจประจำวัน + เลือกหมวดหมู่ชวนคุย */}
+        {/* แท็บฝึกคุย */}
         {activeTab === 'practice' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
@@ -715,7 +689,6 @@ export default function App() {
                 <p className="text-[10px] font-bold text-slate-500 mt-1">ตัวช่วยสลายความเกร็งสำหรับคนนึกคำชวนคุยไม่ออก</p>
               </div>
 
-              {/* Daily Speaking Quest */}
               <div className="bg-amber-100 border-2 border-black p-3.5 rounded-2xl mb-5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <h3 className="text-xs font-black text-black mb-2 flex items-center gap-1">🎯 ภารกิจฝึกคุยประจำวัน</h3>
                 <div className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-800">
@@ -730,7 +703,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Cat Vibe Selector */}
               <div className="mb-4">
                 <label className="text-[10px] font-black text-black block mb-1">เลือกสไตล์การพูด (Cat Vibe):</label>
                 <div className="flex gap-2">
@@ -750,7 +722,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Category Buttons */}
               <div className="mb-4">
                 <label className="text-[10px] font-black text-black block mb-1">เลือกหมวดหมู่ที่อยากชวนคุย:</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -760,7 +731,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* AI Suggestion Box */}
               <div className="bg-slate-50 border-2 border-black p-4 rounded-3xl text-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <p className="text-xs text-black font-black min-h-[40px] flex items-center justify-center">
                   {aiSuggestion || 'กดเลือกหมวดหมู่ปุ่มด้านบนเพื่อขอไอเดียประโยคชวนคุยเมี๊ยว'}
@@ -770,7 +740,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บโปรไฟล์ (Profile Blob UI) */}
+        {/* แท็บโปรไฟล์ */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] pb-8">
             <div className="text-center mb-6 border-b-2 border-black pb-6">
@@ -778,17 +748,9 @@ export default function App() {
                 <div className="w-full h-full bg-amber-100 rounded-3xl overflow-hidden border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   <img src={myProfile.img || CAT_MASCOT} className="w-full h-full object-cover" />
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => fileInputRef.current.click()} 
-                  className="absolute bottom-0 right-0 bg-[#FF4500] text-white w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs font-black shadow-md"
-                >
-                  📷
-                </button>
+                <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#FF4500] text-white w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs font-black shadow-md">📷</button>
               </div>
-
               <input type="file" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" className="hidden" />
-
               <h2 className="text-2xl font-black text-black">{myProfile.name || 'ชื่อของคุณ'}</h2>
             </div>
 
@@ -811,8 +773,68 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Nav Blob Style */}
-      <div className="fixed bottom-3 inset-x-0 max-w-md mx-auto px-4 z-50">
+      {/* --- Modal คู่มือ (Manual) --- */}
+      {showManual && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] p-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full relative">
+            <button onClick={() => setShowManual(false)} className="absolute top-4 right-4 text-black hover:text-[#FF4500] font-black text-xl">✕</button>
+            <h2 className="text-xl font-black mb-4 flex items-center gap-2">📖 คู่มือ TINNTUU</h2>
+            
+            <div className="space-y-4 text-xs font-bold text-slate-800">
+              <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
+                <p className="font-black text-black mb-1">🐾 หาเพื่อน (Swipe)</p>
+                <p className="text-[10px]">เลื่อนซ้ายเพื่อข้าม เลื่อนขวาเพื่อส่งใจ หากใจตรงกันจะได้เริ่มแชทเลย!</p>
+              </div>
+              <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
+                <p className="font-black text-black mb-1">📅 นัดหมาย (Schedule)</p>
+                <p className="text-[10px]">จดบันทึกตารางนัดเจอเพื่อน กินข้าว อ่านหนังสือ มีแจ้งเตือนกิจกรรม</p>
+              </div>
+              <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
+                <p className="font-black text-black mb-1">💬 แชท (Chat)</p>
+                <p className="text-[10px]">คุยกับเพื่อนที่แมตช์ได้ หรือจะสร้างห้องคุยเป็นกลุ่มก็สบาย</p>
+              </div>
+              <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
+                <p className="font-black text-black mb-1">🎙️ ฝึกคุย (Practice)</p>
+                <p className="text-[10px]">ให้ AI บอทแมวช่วยเสนอไอเดียประโยคทักทาย ลดความเกร็ง</p>
+              </div>
+            </div>
+            
+            <button onClick={() => setShowManual(false)} className="w-full mt-6 bg-[#FF4500] text-white border-2 border-black py-3 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
+              เข้าใจแล้วเมี๊ยว! 🐾
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- Modal แจ้งปัญหา (Report Issue) --- */}
+      {showReport && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] p-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full relative">
+            <button onClick={() => setShowReport(false)} className="absolute top-4 right-4 text-black hover:text-[#FF4500] font-black text-xl">✕</button>
+            <h2 className="text-xl font-black mb-2 flex items-center gap-2">🐞 แจ้งปัญหา / เสนอแนะ</h2>
+            <p className="text-[10px] text-slate-600 font-bold mb-5 leading-relaxed">
+              พบบัคตรงไหน ใช้งานยาก หรืออยากให้ผู้พัฒนาเพิ่มฟีเจอร์อะไรใหม่ๆ พิมพ์บอกเราได้เลยเมี๊ยว!
+            </p>
+            
+            <form onSubmit={handleReportSubmit} className="flex flex-col gap-3">
+              <textarea 
+                value={reportText} 
+                onChange={(e) => setReportText(e.target.value)} 
+                rows={5} 
+                className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none resize-none text-black text-xs font-bold focus:bg-white" 
+                placeholder="อธิบายรายละเอียดปัญหา หรือสิ่งที่อยากให้ปรับปรุง..." 
+                required 
+              />
+              <button type="submit" className="w-full bg-slate-900 text-white border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-2 active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center justify-center gap-2">
+                ส่งข้อความถึงผู้พัฒนา 🚀
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Nav */}
+      <div className="fixed bottom-3 inset-x-0 max-w-md mx-auto px-4 z-40">
         <nav className="bg-white rounded-full border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between p-1.5">
           {[
             { id: 'swipe', icon: '🐾', label: 'หาเพื่อน' },
