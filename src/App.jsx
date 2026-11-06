@@ -4,7 +4,7 @@ import {
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
   enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField, deleteDoc
+  deleteField, deleteDoc, increment
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -65,7 +65,7 @@ export default function App() {
   const [newRoomName, setNewRoomName] = useState('');
   
   const [aiSuggestion, setAiSuggestion] = useState('');
-  const [toastMsg, setToastMsg] = useState(null); // State สำหรับแจ้งเตือนแชท
+  const [toastMsg, setToastMsg] = useState(null); // State แจ้งเตือนข้อความใหม่
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -157,6 +157,15 @@ export default function App() {
     });
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
+
+  // รีเซ็ตจำนวนข้อความที่ยังไม่ได้อ่านเป็น 0 เมื่อเปิดแชทอ่าน
+  useEffect(() => {
+    if (user && currentChatId && activeChatType === 'private') {
+      updateDoc(doc(db, 'matches', currentChatId), {
+        [`unread_${user.uid}`]: 0
+      }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
+    }
+  }, [currentChatId, activeChatType, user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -272,9 +281,16 @@ export default function App() {
     
     await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
 
-    // อัปเดตห้องแชทเพื่อสะกิดแจ้งเตือนอีกฝ่าย
+    // อัปเดตข้อมูลห้องแชท + นับจำนวนข้อความที่ยังไม่ได้อ่านเพิ่มขึ้น 1 ให้อีกฝ่าย
     if (activeChatType === 'private') {
-      await updateDoc(doc(db, 'matches', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid });
+      const currentMatch = matches.find(m => m.id === currentChatId);
+      const targetUid = currentMatch ? currentMatch.participants.find(id => id !== user.uid) : null;
+
+      await updateDoc(doc(db, 'matches', currentChatId), { 
+        lastUpdated: serverTimestamp(), 
+        lastSender: user.uid,
+        ...(targetUid ? { [`unread_${targetUid}`]: increment(1) } : {})
+      });
     } else if (activeChatType === 'group_chat') {
       await updateDoc(doc(db, 'group_chats', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid });
     }
@@ -369,7 +385,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* --- แจ้งเตือนแชทใหม่ --- */}
+      {/* แถบแจ้งเตือนป๊อปอัปข้อความใหม่ */}
       {toastMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-slate-900/90 backdrop-blur-sm text-white px-6 py-3 rounded-full text-xs font-black shadow-[0_10px_40px_rgba(0,0,0,0.3)] z-[100] animate-bounce border border-slate-700 flex items-center gap-2">
           <span>{toastMsg}</span>
@@ -486,10 +502,21 @@ export default function App() {
                             const otherProfile = allProfiles.find(p => p.uid === otherUid);
                             if(!otherProfile) return null;
                             const targetMatch = matches.find(m => m.participants.includes(otherUid));
+                            
+                            // ดึงจำนวนข้อความที่ยังไม่ได้อ่าน
+                            const unreadCount = targetMatch?.[`unread_${user.uid}`] || 0;
+
                             return (
-                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors border-b border-slate-50">
+                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors border-b border-slate-50 relative">
                                     <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100" />
-                                    <span className="font-black text-sm text-slate-800">{otherProfile.name}</span>
+                                    <span className="font-black text-sm text-slate-800 flex-1">{otherProfile.name}</span>
+                                    
+                                    {/* จุดวงกลมแจ้งเตือนตัวเลขสีแดง */}
+                                    {unreadCount > 0 && (
+                                        <div className="bg-red-500 text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center shadow-sm animate-pulse">
+                                            {unreadCount > 99 ? '99+' : unreadCount}
+                                        </div>
+                                    )}
                                 </div>
                             )
                         })}
