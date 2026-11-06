@@ -4,11 +4,11 @@ import {
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
   enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField
+  deleteField, deleteDoc
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
-  onAuthStateChanged, signOut 
+  onAuthStateChanged, signOut, deleteUser
 } from 'firebase/auth';
 
 // --- 1. Firebase Config ---
@@ -27,6 +27,18 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
+// ค่าเริ่มต้นสำหรับโปรไฟล์ใหม่
+const DEFAULT_PROFILE = {
+  name: '', 
+  faculty: 'ธรรมศาสตร์', 
+  location: 'เชียงราก', 
+  bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
+  img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80', 
+  tags: 'หาเพื่อน, ทาสแมว',
+  swiped: [],
+  schedule: []
+};
+
 export default function App() {
   // --- States ---
   const [user, setUser] = useState(null);
@@ -39,13 +51,7 @@ export default function App() {
   const [allProfiles, setAllProfiles] = useState([]);
   const [localSwiped, setLocalSwiped] = useState([]);
 
-  const [myProfile, setMyProfile] = useState({ 
-    name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
-    img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80', 
-    tags: 'หาเพื่อน, ทาสแมว',
-    swiped: [],
-    schedule: []
-  });
+  const [myProfile, setMyProfile] = useState(DEFAULT_PROFILE);
   const [hasProfile, setHasProfile] = useState(false);
 
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
@@ -84,6 +90,7 @@ export default function App() {
         setMyProfile(prev => ({ ...prev, ...myDoc }));
         setHasProfile(true);
       } else {
+        setMyProfile(DEFAULT_PROFILE);
         setHasProfile(false);
         setActiveTab('profile');
       }
@@ -104,7 +111,7 @@ export default function App() {
   useEffect(() => {
     if (!user) {
       setLocalSwiped([]);
-      setMyProfile(prev => ({ ...prev, swiped: [], schedule: [] }));
+      setMyProfile(DEFAULT_PROFILE);
       return;
     }
 
@@ -174,7 +181,6 @@ export default function App() {
         updatedAt: serverTimestamp()
       }, { merge: true });
 
-      // สร้างเอกสารส่วนตัวแยกต่างหาก ไม่เปิดเผยให้ผู้ใช้อื่นอ่าน
       await setDoc(doc(db, 'user_private', user.uid), {
         swiped: myProfile.swiped || [],
         schedule: myProfile.schedule || []
@@ -186,6 +192,29 @@ export default function App() {
     } catch (err) {
       console.error(err);
       alert('บันทึกโปรไฟล์ไม่สำเร็จ');
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    
+    const confirmDelete = window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชี? ข้อมูลทั้งหมดจะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้ 😿");
+    if (!confirmDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'user_private', user.uid));
+      await deleteDoc(doc(db, 'users', user.uid));
+      
+      await deleteUser(user);
+      
+      alert('ลบบัญชีของคุณเรียบร้อยแล้ว ลาก่อนเมี๊ยว 🐾');
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/requires-recent-login') {
+        alert('กรุณา "ออกจากระบบ" แล้ว "เข้าสู่ระบบใหม่" อีกครั้งก่อนกดลบบัญชีเพื่อยืนยันตัวตนครับ');
+      } else {
+        alert('เกิดข้อผิดพลาดในการลบบัญชี');
+      }
     }
   };
 
@@ -313,7 +342,6 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-4">
-        {/* แท็บหาเพื่อน */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2rem] p-4 flex gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide shadow-lg">
@@ -367,7 +395,6 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บนัดหมาย */}
         {activeTab === 'schedule' && (
           <div className="flex flex-col gap-4 h-full">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl text-slate-900">
@@ -409,7 +436,6 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บแชท */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-170px)] shadow-xl relative">
                 <div className="flex p-2 bg-slate-50 gap-2 border-b border-slate-100">
@@ -480,7 +506,6 @@ export default function App() {
             </div>
         )}
 
-        {/* แท็บฝึกคุย */}
         {activeTab === 'practice' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl">
@@ -496,7 +521,6 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บโปรไฟล์ */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[2.5rem] p-6 shadow-xl pb-8">
             <div className="text-center mb-6 border-b border-slate-100 pb-6">
@@ -530,6 +554,7 @@ export default function App() {
                 
                 <button type="submit" className="bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white py-4 rounded-full font-black text-xs shadow-md mt-4 hover:opacity-90 transition">บันทึกตัวตน 🐾</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-100 text-slate-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-slate-200">ออกจากระบบ</button>
+                <button type="button" onClick={handleDeleteAccount} className="bg-red-50 text-red-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-red-100 border border-red-100 transition">ลบบัญชีผู้ใช้ (Delete Account)</button>
             </form>
           </div>
         )}
