@@ -4,7 +4,7 @@ import {
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
   enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField, deleteDoc, increment
+  deleteField, deleteDoc
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -158,12 +158,12 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // รีเซ็ตจำนวนข้อความที่ยังไม่ได้อ่านเป็น 0 เมื่อเปิดแชทอ่าน
+  // รีเซ็ตจำนวนข้อความที่ยังไม่ได้อ่านเป็น 0 เมื่อกดเข้าหน้าแชทส่วนตัวนั้น
   useEffect(() => {
     if (user && currentChatId && activeChatType === 'private') {
-      updateDoc(doc(db, 'matches', currentChatId), {
+      setDoc(doc(db, 'matches', currentChatId), {
         [`unread_${user.uid}`]: 0
-      }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
+      }, { merge: true }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
     }
   }, [currentChatId, activeChatType, user]);
 
@@ -281,18 +281,25 @@ export default function App() {
     
     await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
 
-    // อัปเดตข้อมูลห้องแชท + นับจำนวนข้อความที่ยังไม่ได้อ่านเพิ่มขึ้น 1 ให้อีกฝ่าย
+    // ใช้ setDoc (merge: true) เพื่อให้สร้างฟิลด์ unread_... ให้อัตโนมัติ ป้องกัน Error ในกรณีเอกสาร Match เดิมไม่มีฟิลด์นี้
     if (activeChatType === 'private') {
       const currentMatch = matches.find(m => m.id === currentChatId);
       const targetUid = currentMatch ? currentMatch.participants.find(id => id !== user.uid) : null;
 
-      await updateDoc(doc(db, 'matches', currentChatId), { 
-        lastUpdated: serverTimestamp(), 
-        lastSender: user.uid,
-        ...(targetUid ? { [`unread_${targetUid}`]: increment(1) } : {})
-      });
+      if (targetUid) {
+        const currentUnread = currentMatch[`unread_${targetUid}`] || 0;
+
+        await setDoc(doc(db, 'matches', currentChatId), { 
+          lastUpdated: serverTimestamp(), 
+          lastSender: user.uid,
+          [`unread_${targetUid}`]: currentUnread + 1
+        }, { merge: true });
+      }
     } else if (activeChatType === 'group_chat') {
-      await updateDoc(doc(db, 'group_chats', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid });
+      await setDoc(doc(db, 'group_chats', currentChatId), { 
+        lastUpdated: serverTimestamp(), 
+        lastSender: user.uid 
+      }, { merge: true });
     }
   };
 
