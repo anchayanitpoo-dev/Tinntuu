@@ -42,6 +42,25 @@ const DEFAULT_PROFILE = {
   schedule: []
 };
 
+// ไอเดียประโยคชวนคุยแยกตามหมวดหมู่ มธ.
+const ICEBREAKERS_BY_CATEGORY = {
+  food: [
+    "ช่วงนี้มีร้านชาบูเด็ดๆ แถวเชียงรากแนะนำมั้ย?",
+    "ยามเย็นปกติชอบกินข้าวที่ใต้หอหรือไปยูเซนเตอร์?",
+    "เคยกินป้าต๋อยยัง เมนูไหนอร่อยสุดเหรอ?"
+  ],
+  study: [
+    "ลงวิชา TU100/TU106 เซกไหนไปเหรอ?",
+    "สัปดาห์นี้มีสอบมิดเทอมมั้ย อ่านหนังสือถึงไหนแล้ว?",
+    "มีที่อ่านหนังสือเงียบๆ แนะนำในมหาลัยมั้ย?"
+  ],
+  cat: [
+    "เป็นทาสแมวสายไหนเหรอ แมวส้ม แมวสามสี หรือแมวลายสลิด?",
+    "เคยเจอน้องแมวประจำคณะเรายัง น้องกวนมากเลยนะ!",
+    "ถ้าเลี้ยงแมวได้ 1 ตัว อยากตั้งชื่อว่าอะไร?"
+  ]
+};
+
 export default function App() {
   // --- States ---
   const [user, setUser] = useState(null);
@@ -67,8 +86,11 @@ export default function App() {
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
   
+  // States สำหรับฟีเจอร์ช่วยพูด
   const [aiSuggestion, setAiSuggestion] = useState('');
+  const [catVibe, setCatVibe] = useState('friendly'); // polite | friendly | cat
   const [toastMsg, setToastMsg] = useState(null);
+  const [questDone, setQuestDone] = useState({ practice: false, chat: false });
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -82,7 +104,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // โหลดข้อมูล Public และดักจับการแจ้งเตือน
+  // โหลดข้อมูล Public
   useEffect(() => {
     if (!user) return;
     const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), snapshot => {
@@ -228,7 +250,6 @@ export default function App() {
 
   const handleDeleteAccount = async () => {
     if (!user) return;
-    
     const confirmDelete = window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชี? ข้อมูลทั้งหมดจะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้ 😿");
     if (!confirmDelete) return;
 
@@ -281,6 +302,7 @@ export default function App() {
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
     
     await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
+    setQuestDone(prev => ({ ...prev, chat: true }));
 
     if (activeChatType === 'private') {
       const currentMatch = matches.find(m => m.id === currentChatId);
@@ -343,9 +365,30 @@ export default function App() {
     }
   };
 
-  const generateAiNextQuestion = () => {
-    const questions = ["ช่วงนี้เรียนหนักมั้ย?", "มีร้านชาบูแนะนำแถวหอมั้ย?", "ชอบแมวหรือหมามากกว่ากัน 🐱🐶?", "เสาร์อาทิตย์นี้ไปเที่ยวไหนมั้ย?"];
-    setAiSuggestion(questions[Math.floor(Math.random() * questions.length)]);
+  // ฟังก์ชันสุ่มประโยคฝึกคุยตามหมวดหมู่และระดับความกวน (Cat Vibe)
+  const generateCategoryQuestion = (category) => {
+    const pool = ICEBREAKERS_BY_CATEGORY[category] || ICEBREAKERS_BY_CATEGORY.food;
+    let text = pool[Math.floor(Math.random() * pool.length)];
+
+    if (catVibe === 'polite') {
+      text = text + " ครับ/ค่ะ 😊";
+    } else if (catVibe === 'cat') {
+      text = text.replace("เหรอ", "ป่ะเมี๊ยว").replace("มั้ย", "รึเปล่าเมี๊ยว") + " 😼🐾";
+    }
+
+    setAiSuggestion(text);
+    setQuestDone(prev => ({ ...prev, practice: true }));
+  };
+
+  // Smart Reply ช่วยตอบในหน้าแชท
+  const handleSmartReply = () => {
+    const replies = [
+      "ยินดีที่ได้รู้จักน้าา เรียนคณะอะไรเหรอ? 🎓",
+      "ช่วงนี้เรียนเป็นไงบ้าง ยุ่งมากมั้ย? 🐱",
+      "ว่างๆ ไปหาของกินแถวเชียงรากกันได้นะ 🍜",
+      "แมวตัวในรูปน่ารักจัง เลี้ยงเองรึเปล่าเมี๊ยว? 🐾"
+    ];
+    setInputText(replies[Math.floor(Math.random() * replies.length)]);
   };
 
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
@@ -362,7 +405,6 @@ export default function App() {
   if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
-        {/* Blob Background Decorative Shapes */}
         <div className="absolute -top-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
         <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
 
@@ -377,7 +419,7 @@ export default function App() {
               TINNTUU <span className="text-2xl">🐾</span>
             </h1>
             <p className="text-[11px] text-[#FF4500] font-extrabold uppercase tracking-widest mt-1">
-              Cat Blob TU Social
+              Cat Speech Assistant TU Social
             </p>
           </div>
 
@@ -408,7 +450,7 @@ export default function App() {
           TINNTUU <span className="text-xl">😼</span>
         </h1>
         <div className="bg-amber-300 text-black px-4 py-1.5 rounded-full text-xs font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-          TU Network 🐾
+          Speech Assistant 🐾
         </div>
       </header>
 
@@ -424,7 +466,6 @@ export default function App() {
         {/* แท็บหาเพื่อน (Swipe) */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col gap-4">
-            {/* รายการแมตช์สไตล์ Blob Pills */}
             <div className="bg-white rounded-[2.5rem] p-4 flex gap-3 overflow-x-auto scrollbar-hide border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex flex-col items-center gap-1 min-w-[65px]">
                 <div className="w-14 h-14 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl border-2 border-black flex items-center justify-center text-black text-2xl font-black shadow-sm">💬</div>
@@ -443,7 +484,6 @@ export default function App() {
               })}
             </div>
 
-            {/* การ์ดโปรไฟล์ Blob Style */}
             {currentProfile ? (
               <div className="bg-white rounded-[3rem] p-4 pb-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col relative overflow-hidden">
                 <div className="absolute top-6 right-6 bg-amber-300 border-2 border-black text-black text-[10px] px-3.5 py-1 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
@@ -524,7 +564,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บแชท (Chat Blob UI) */}
+        {/* แท็บแชท + Smart Reply */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[3rem] border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col h-[calc(100vh-180px)] relative">
                 <div className="flex p-2 bg-slate-100 border-b-2 border-black gap-2">
@@ -594,6 +634,14 @@ export default function App() {
                             <div ref={messagesEndRef} />
                         </div>
 
+                        {/* แถบ Smart Reply Helper */}
+                        <div className="px-3 py-1.5 bg-amber-100 border-t-2 border-black flex justify-between items-center z-30">
+                            <span className="text-[10px] font-black text-black">💡 นึกคำตอบไม่ออก?</span>
+                            <button onClick={handleSmartReply} type="button" className="bg-white text-[#FF4500] border border-black px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm">
+                              สุ่มคำตอบเมี๊ยว 🐾
+                            </button>
+                        </div>
+
                         <form onSubmit={sendMessage} className="p-3 pb-24 bg-white flex gap-2 items-center border-t-2 border-black z-30">
                             <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 border-2 border-black px-4 py-3 rounded-full text-xs font-bold text-black focus:outline-none" placeholder="พิมพ์ข้อความ..." />
                             <button type="submit" disabled={!inputText.trim()} className="bg-[#FF4500] border-2 border-black disabled:opacity-50 text-white w-10 h-10 rounded-full flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">➤</button>
@@ -603,17 +651,66 @@ export default function App() {
             </div>
         )}
 
-        {/* แท็บฝึกคุยกับบอทแมว */}
+        {/* แท็บฝึกคุยกับบอทแมว + ภารกิจประจำวัน + เลือกหมวดหมู่ชวนคุย */}
         {activeTab === 'practice' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
-              <div className="text-center mb-6">
-                <div className="text-6xl mb-2">😼🤖</div>
-                <h2 className="text-xl font-black text-black">ฝึกคุยกับบอทแมวหน้ากวน</h2>
+              <div className="text-center mb-4">
+                <div className="text-6xl mb-2">😼🎙️</div>
+                <h2 className="text-xl font-black text-black">ศูนย์ฝึกคุยกับบอทแมว</h2>
+                <p className="text-[10px] font-bold text-slate-500 mt-1">ตัวช่วยสลายความเกร็งสำหรับคนนึกคำชวนคุยไม่ออก</p>
               </div>
-              <div className="bg-amber-50 border-2 border-black p-5 rounded-3xl mb-4 text-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                <p className="text-sm text-black font-black mb-4">{aiSuggestion || 'กดปุ่มด้านล่างเพื่อขอประโยคชวนคุยเมี๊ยว'}</p>
-                <button onClick={generateAiNextQuestion} className="bg-[#FF4500] text-white border-2 border-black py-3 px-6 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none">ขอไอเดียชวนคุย 💡</button>
+
+              {/* Daily Speaking Quest */}
+              <div className="bg-amber-100 border-2 border-black p-3.5 rounded-2xl mb-5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-xs font-black text-black mb-2 flex items-center gap-1">🎯 ภารกิจฝึกคุยประจำวัน</h3>
+                <div className="flex flex-col gap-1.5 text-[11px] font-bold text-slate-800">
+                  <div className="flex items-center gap-2">
+                    <span>{questDone.practice ? "✅" : "⚪"}</span>
+                    <span>ขอประโยคชวนคุยอย่างน้อย 1 ครั้ง</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>{questDone.chat ? "✅" : "⚪"}</span>
+                    <span>ส่งแชททักทายเพื่อนใหม่ 1 ข้อความ</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Cat Vibe Selector */}
+              <div className="mb-4">
+                <label className="text-[10px] font-black text-black block mb-1">เลือกสไตล์การพูด (Cat Vibe):</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'polite', label: 'สุภาพ 😊' },
+                    { id: 'friendly', label: 'เป็นกันเอง 👍' },
+                    { id: 'cat', label: 'กวนๆ ทาสแมว 😼' }
+                  ].map(vibe => (
+                    <button 
+                      key={vibe.id} 
+                      onClick={() => setCatVibe(vibe.id)}
+                      className={`flex-1 py-1.5 rounded-full text-[10px] font-black border-2 border-black transition-all ${catVibe === vibe.id ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-100 text-black'}`}
+                    >
+                      {vibe.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category Buttons */}
+              <div className="mb-4">
+                <label className="text-[10px] font-black text-black block mb-1">เลือกหมวดหมู่ที่อยากชวนคุย:</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button onClick={() => generateCategoryQuestion('food')} className="bg-orange-100 hover:bg-orange-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">🍜 ของกินเชียงราก</button>
+                  <button onClick={() => generateCategoryQuestion('study')} className="bg-amber-100 hover:bg-amber-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">📚 เรื่องเรียน/สอบ</button>
+                  <button onClick={() => generateCategoryQuestion('cat')} className="bg-red-100 hover:bg-red-200 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">🐾 เรื่องแมวประจำตึก</button>
+                </div>
+              </div>
+
+              {/* AI Suggestion Box */}
+              <div className="bg-slate-50 border-2 border-black p-4 rounded-3xl text-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <p className="text-xs text-black font-black min-h-[40px] flex items-center justify-center">
+                  {aiSuggestion || 'กดเลือกหมวดหมู่ปุ่มด้านบนเพื่อขอไอเดียประโยคชวนคุยเมี๊ยว'}
+                </p>
               </div>
             </div>
           </div>
