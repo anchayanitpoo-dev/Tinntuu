@@ -41,9 +41,13 @@ export default function App() {
     name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
     img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80', 
     tags: 'หาเพื่อน, ทาสแมว',
-    swiped: [] // เก็บประวัติคนที่ปัดไปแล้ว
+    swiped: [],
+    schedule: [] // เก็บข้อมูลนัดหมาย
   });
   const [hasProfile, setHasProfile] = useState(false);
+
+  // Calendar State
+  const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
 
   const [matches, setMatches] = useState([]);
   const [activeChatType, setActiveChatType] = useState('list'); 
@@ -53,9 +57,7 @@ export default function App() {
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
   
-  const [selectedScenario, setSelectedScenario] = useState('ev_bus');
   const [aiSuggestion, setAiSuggestion] = useState('');
-  const [isCalling, setIsCalling] = useState(false);
 
   // --- Refs ---
   const messagesEndRef = useRef(null);
@@ -75,7 +77,7 @@ export default function App() {
       const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllProfiles(profiles);
       const myDoc = profiles.find(p => p.uid === user.uid);
-      if (myDoc) { setMyProfile({swiped: [], ...myDoc}); setHasProfile(true); } 
+      if (myDoc) { setMyProfile({swiped: [], schedule: [], ...myDoc}); setHasProfile(true); } 
       else { setHasProfile(false); setActiveTab('profile'); }
     });
 
@@ -99,7 +101,6 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // เลื่อนแชทลงล่างสุดอัตโนมัติ
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChatType]);
@@ -108,9 +109,21 @@ export default function App() {
   const handleAuth = async (e) => {
     e.preventDefault();
     try {
-      if (isLoginMode) await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
-    } catch (err) { alert(err.message); }
+      if (isLoginMode) {
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        await createUserWithEmailAndPassword(auth, email, password);
+        alert('สร้างบัญชีสำเร็จ! ยินดีต้อนรับ 🐾');
+      }
+    } catch (err) { 
+        if(err.code === 'auth/email-already-in-use') {
+            alert('อีเมลนี้ถูกใช้งานไปแล้ว (1 คนสมัครได้ 1 บัญชีเท่านั้น) กรุณาล็อกอินแทนครับ');
+        } else if (err.code === 'auth/wrong-password') {
+            alert('รหัสผ่านไม่ถูกต้อง');
+        } else {
+            alert(err.message); 
+        }
+    }
   };
 
   const handleSaveProfile = async (e) => {
@@ -121,31 +134,21 @@ export default function App() {
       if (!hasProfile) setActiveTab('swipe');
       setHasProfile(true);
       alert('บันทึกโปรไฟล์สำเร็จ 🐾');
-    } catch (err) { alert('Error saving'); }
+    } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
   };
 
-  // รวมฟังก์ชันปัด (ข้าม / ถูกใจ)
   const handleSwipe = async (targetUid, isLike) => {
     try {
-      // 1. บันทึกว่าปัดคนนี้ไปแล้ว จะได้ไม่เห็นอีก
-      await updateDoc(doc(db, 'users', user.uid), {
-        swiped: arrayUnion(targetUid)
-      });
-      
-      // 2. ถ้ากดถูกใจ ให้สร้างห้องแชท
+      await updateDoc(doc(db, 'users', user.uid), { swiped: arrayUnion(targetUid) });
       if (isLike) {
         const newMatchRef = await addDoc(collection(db, 'matches'), { 
-          participants: [user.uid, targetUid], 
-          matchedAt: serverTimestamp() 
+          participants: [user.uid, targetUid], matchedAt: serverTimestamp() 
         });
         setCurrentChatId(newMatchRef.id);
         setActiveChatType('private');
         setActiveTab('chat');
       }
-    } catch (err) { 
-        console.error(err);
-        alert("เกิดข้อผิดพลาด กรุณาลองใหม่");
-    }
+    } catch (err) { alert("ระบบปัดขัดข้อง กรุณาลองใหม่"); }
   };
 
   const sendMessage = async (e) => {
@@ -156,15 +159,28 @@ export default function App() {
     await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
   };
 
+  const handleAddEvent = async (e) => {
+    e.preventDefault();
+    if (!newEvent.title || !newEvent.date) return;
+    try {
+        const updatedSchedule = [...(myProfile.schedule || []), newEvent];
+        // เรียงลำดับวันที่จากใกล้ไปไกล
+        updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        await updateDoc(doc(db, 'users', user.uid), { schedule: updatedSchedule });
+        setNewEvent({ title: '', date: '', time: '' });
+        alert('เพิ่มนัดหมายแล้ว 📅');
+    } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
+  };
+
   const generateAiNextQuestion = () => {
-    const questions = ["ช่วงนี้เรียนหนักมั้ย?", "มีร้านชาบูแนะนำแถวหอมั้ย?", "ชอบแมวหรือหมามากกว่ากัน 🐱🐶?"];
+    const questions = ["ช่วงนี้เรียนหนักมั้ย?", "มีร้านชาบูแนะนำแถวหอมั้ย?", "ชอบแมวหรือหมามากกว่ากัน 🐱🐶?", "เสาร์อาทิตย์นี้ไปเที่ยวไหนมั้ย?"];
     setAiSuggestion(questions[Math.floor(Math.random() * questions.length)]);
   };
 
-  // คัดกรองคนที่ยังไม่เคยปัดมาแสดง (ดึงคนที่ไม่ได้อยู่ใน myProfile.swiped)
   const swipedList = myProfile.swiped || [];
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !swipedList.includes(p.uid));
-  const currentProfile = othersProfiles[0]; // แสดงคนแรกสุดที่ผ่านการกรองเสมอ
+  const currentProfile = othersProfiles[0]; 
 
   // --- UI Components ---
   if (authLoading) return <div className="min-h-screen bg-gradient-to-br from-red-600 via-[#FF4500] to-orange-500 text-white flex items-center justify-center font-bold">Loading 🐾...</div>;
@@ -179,8 +195,8 @@ export default function App() {
             <p className="text-[10px] text-[#FF4500] uppercase tracking-widest font-bold mt-1">Join the pack</p>
           </div>
           <form onSubmit={handleAuth} className="space-y-4">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium text-slate-800" placeholder="Email Address" required />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium text-slate-800" placeholder="Password" required />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium text-slate-800" placeholder="อีเมล (Email)" required />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-none px-5 py-4 rounded-full focus:ring-2 focus:ring-[#FF4500] font-medium text-slate-800" placeholder="รหัสผ่าน (Password)" required />
             <button type="submit" className="w-full bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white font-black py-4 rounded-full shadow-lg hover:opacity-90 transition mt-4">
               {isLoginMode ? 'เข้าสู่ระบบ (Sign In)' : 'สร้างบัญชี (Create Account)'}
             </button>
@@ -195,8 +211,6 @@ export default function App() {
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-red-600 via-[#FF4500] to-orange-500 flex flex-col font-sans pb-[85px] relative">
-      
-      {/* Header */}
       <header className="px-6 py-5 flex justify-between items-center sticky top-0 z-50 bg-transparent">
         <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-md">
           TINNTUU <span className="text-white text-lg">🐾</span>
@@ -206,12 +220,11 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto px-4">
         
+        {/* แท็บหาเพื่อน */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col gap-4">
-            {/* กลมๆ ด้านบนสำหรับคนที่แมทช์แล้ว */}
             <div className="bg-white rounded-[2rem] p-4 flex gap-3 overflow-x-auto whitespace-nowrap scrollbar-hide shadow-lg">
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <div className="w-14 h-14 bg-gradient-to-br from-[#FF4500] to-[#FF7043] rounded-full flex items-center justify-center text-white text-2xl shadow-sm">💬</div>
@@ -230,7 +243,6 @@ export default function App() {
               })}
             </div>
 
-            {/* การ์ดโปรไฟล์เพื่อน */}
             {currentProfile ? (
               <div className="bg-white rounded-[2.5rem] p-4 pb-6 shadow-xl flex flex-col relative overflow-hidden">
                 <div className="absolute top-6 right-6 bg-white/90 backdrop-blur text-[#FF4500] text-[10px] px-3 py-1.5 rounded-full font-black z-10 shadow-sm border border-slate-100">
@@ -240,12 +252,10 @@ export default function App() {
                 <div className="px-2">
                   <h2 className="text-2xl font-black text-slate-900">{currentProfile.name}</h2>
                   <p className="text-sm text-slate-500 font-medium mt-1 mb-4">{currentProfile.bio}</p>
-                  
                   <div className="flex flex-wrap gap-2 mb-6">
                     <span className="bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[10px] px-3 py-1.5 rounded-full">🎓 {currentProfile.faculty}</span>
                     <span className="bg-[#FF4500]/10 border border-[#FF4500]/20 text-[#FF4500] font-bold text-[10px] px-3 py-1.5 rounded-full">🏷 {currentProfile.tags}</span>
                   </div>
-                  
                   <div className="flex gap-3">
                     <button onClick={() => handleSwipe(currentProfile.uid, false)} className="flex-1 py-4 bg-slate-100 text-slate-400 rounded-full font-black text-xs hover:bg-slate-200 transition-colors">
                       ข้ามไปก่อน (Skip)
@@ -266,47 +276,51 @@ export default function App() {
           </div>
         )}
 
-        {/* ตารางนัดหมาย */}
+        {/* แท็บนัดหมาย (ปฏิทินที่แก้ไขและลงวันที่ได้) */}
         {activeTab === 'schedule' && (
           <div className="flex flex-col gap-4 h-full">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl text-slate-900">
               <h2 className="text-xl font-black mb-4 flex items-center justify-between">
                 <span className="text-[#FF4500]">ตารางนัดหมาย 📅</span>
-                <span className="text-2xl">🐈</span>
               </h2>
               
-              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6">
-                <div className="flex justify-between items-center mb-4 font-bold text-sm">
-                  <button className="text-slate-400">&lt;</button>
-                  <span className="text-slate-700">พฤศจิกายน (November)</span>
-                  <button className="text-slate-400">&gt;</button>
+              {/* ฟอร์มเพิ่มนัดหมาย */}
+              <form onSubmit={handleAddEvent} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6 flex flex-col gap-3">
+                <h3 className="font-bold text-xs text-slate-700">+ เพิ่มกิจกรรมใหม่</h3>
+                <div className="flex gap-2">
+                    <input type="date" value={newEvent.date} onChange={e=>setNewEvent({...newEvent, date: e.target.value})} className="flex-1 bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" required/>
+                    <input type="time" value={newEvent.time} onChange={e=>setNewEvent({...newEvent, time: e.target.value})} className="w-24 bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" />
                 </div>
-                <div className="grid grid-cols-7 text-center text-[10px] font-bold text-slate-400 mb-2">
-                  <div>อา</div><div>จ</div><div>อ</div><div>พ</div><div>พฤ</div><div>ศ</div><div>ส</div>
-                </div>
-                <div className="grid grid-cols-7 text-center text-xs font-bold gap-y-3">
-                  <div className="text-slate-300">29</div><div className="text-slate-300">30</div>
-                  <div className="text-slate-700">1</div><div className="text-slate-700">2</div><div className="text-slate-700">3</div>
-                  <div className="bg-[#FF4500] text-white w-6 h-6 rounded-full flex items-center justify-center mx-auto shadow-sm">4</div>
-                  <div className="text-slate-700">5</div>
-                </div>
-              </div>
+                <input type="text" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} placeholder="ชื่อกิจกรรม (เช่น กินชาบู, ติวหนังสือ)" className="bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" required/>
+                <button type="submit" className="bg-[#FF4500] text-white py-2.5 rounded-xl text-xs font-black shadow-sm hover:opacity-90">บันทึกลงปฏิทิน</button>
+              </form>
 
-              <h3 className="font-bold text-sm mb-3 text-slate-800">กิจกรรมที่กำลังจะมาถึง</h3>
+              {/* รายการนัดหมาย */}
+              <h3 className="font-bold text-sm mb-3 text-slate-800">กิจกรรมของคุณ</h3>
               <div className="flex flex-col gap-3">
-                <div className="bg-slate-100 rounded-2xl p-4 flex items-center gap-4">
-                  <div className="bg-white w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-sm">🍲</div>
-                  <div>
-                    <h4 className="font-black text-sm text-slate-800">นัดกินชาบู @เชียงราก</h4>
-                    <p className="text-[10px] text-slate-500 font-bold mt-1">วันนี้ • 18:00 น.</p>
-                  </div>
-                </div>
+                {(!myProfile.schedule || myProfile.schedule.length === 0) ? (
+                    <div className="text-center text-slate-400 text-xs py-4">ยังไม่มีนัดหมาย ลองเพิ่มกิจกรรมดูสิ!</div>
+                ) : (
+                    myProfile.schedule.map((event, idx) => (
+                        <div key={idx} className="bg-white border border-[#FF4500]/20 rounded-2xl p-4 flex items-center gap-4 shadow-sm relative overflow-hidden">
+                            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-[#FF4500]"></div>
+                            <div className="bg-orange-50 text-[#FF4500] w-12 h-12 rounded-full flex flex-col items-center justify-center shadow-sm">
+                                <span className="text-[9px] font-bold">{new Date(event.date).toLocaleDateString('th-TH', { month: 'short'})}</span>
+                                <span className="text-sm font-black">{new Date(event.date).getDate()}</span>
+                            </div>
+                            <div>
+                                <h4 className="font-black text-sm text-slate-800">{event.title}</h4>
+                                <p className="text-[10px] text-slate-500 font-bold mt-1">เวลา: {event.time || 'ตลอดวัน'}</p>
+                            </div>
+                        </div>
+                    ))
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* แชท */}
+        {/* แท็บแชท */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-170px)] shadow-xl relative">
                 <div className="flex p-2 bg-slate-50 gap-2 border-b border-slate-100">
@@ -351,34 +365,34 @@ export default function App() {
                 )}
 
                 {(activeChatType === 'private' || activeChatType === 'group_chat') && (
-                    <div className="flex flex-col h-full bg-slate-50 absolute inset-0 z-10">
-                        <div className="p-4 bg-white flex items-center justify-between shadow-sm z-20">
+                    <div className="flex flex-col h-full bg-slate-50 absolute inset-0 z-20 rounded-[2.5rem] overflow-hidden">
+                        <div className="p-4 bg-white flex items-center justify-between shadow-sm z-30">
                             <button onClick={() => setActiveChatType(activeChatType === 'private' ? 'list' : 'group_list')} className="text-slate-400 font-black text-xl hover:text-[#FF4500]">&lt;</button>
                             <span className="font-black text-sm text-[#FF4500]">{activeChatType === 'private' ? 'คุยส่วนตัว' : 'แชทกลุ่ม'}</span>
                             <span className="text-xl">🐱</span>
                         </div>
                         
-                        <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3">
+                        <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 z-10 pb-4">
                             {messages.map(m => (
                                 <div key={m.id} className={`max-w-[75%] p-3.5 text-xs font-medium rounded-2xl shadow-sm ${m.senderId === user.uid ? 'bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white self-end rounded-br-none' : 'bg-white border border-slate-100 text-slate-800 self-start rounded-bl-none'}`}>
                                     {activeChatType === 'group_chat' && m.senderId !== user.uid && <div className="text-[9px] font-black text-[#FF4500] mb-1">{m.senderName}</div>}
                                     {m.text}
                                 </div>
                             ))}
-                            {/* ตัวช่วยเลื่อนลงล่างสุด */}
                             <div ref={messagesEndRef} />
                         </div>
 
-                        <form onSubmit={sendMessage} className="p-3 bg-white flex gap-2 items-center border-t border-slate-100">
+                        {/* พื้นที่พิมพ์แชทแบบยกสูงหลบเมนู */}
+                        <form onSubmit={sendMessage} className="p-3 pb-24 bg-white flex gap-2 items-center border-t border-slate-100 z-30 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
                             <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 px-4 py-3.5 rounded-full text-xs outline-none font-medium text-slate-800 focus:ring-1 focus:ring-[#FF4500]" placeholder="พิมพ์ข้อความ..." />
-                            <button type="submit" className="bg-[#FF4500] text-white w-11 h-11 rounded-full flex items-center justify-center font-black shadow-md hover:bg-orange-600 transition">➤</button>
+                            <button type="submit" disabled={!inputText.trim()} className="bg-[#FF4500] disabled:opacity-50 text-white w-11 h-11 rounded-full flex items-center justify-center font-black shadow-md hover:bg-orange-600 transition">➤</button>
                         </form>
                     </div>
                 )}
             </div>
         )}
 
-        {/* ฝึกคุย */}
+        {/* แท็บฝึกคุย */}
         {activeTab === 'practice' && (
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl">
@@ -394,7 +408,7 @@ export default function App() {
           </div>
         )}
 
-        {/* โปรไฟล์ */}
+        {/* แท็บโปรไฟล์ */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[2.5rem] p-6 shadow-xl pb-8">
             <div className="text-center mb-6 border-b border-slate-100 pb-6">
@@ -406,12 +420,18 @@ export default function App() {
             </div>
 
             <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 text-sm font-bold">
+                <label className="text-[10px] text-slate-500 -mb-3 ml-2">URL รูปโปรไฟล์ (วางลิงก์รูปภาพ)</label>
+                <input type="url" value={myProfile.img} onChange={e => setMyProfile({...myProfile, img: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="https://..." />
+                
+                <label className="text-[10px] text-slate-500 -mb-3 ml-2 mt-2">ชื่อเล่น</label>
                 <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="ชื่อเล่น" required />
+                
                 <div className="flex gap-3">
                     <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="คณะ" />
                     <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="หอพัก" />
                 </div>
                 <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 resize-none border border-slate-100" placeholder="Bio สั้นๆ" />
+                
                 <button type="submit" className="bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white py-4 rounded-full font-black text-xs shadow-md mt-4 hover:opacity-90 transition">บันทึกตัวตน 🐾</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-100 text-slate-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-slate-200">ออกจากระบบ</button>
             </form>
@@ -419,7 +439,6 @@ export default function App() {
         )}
       </main>
 
-      {/* Floating Navigation */}
       <div className="fixed bottom-4 inset-x-0 max-w-md mx-auto px-4 z-50">
         <nav className="bg-white rounded-[2rem] shadow-[0_10px_40px_rgba(0,0,0,0.2)] flex justify-between p-2 border border-slate-100">
           {[
