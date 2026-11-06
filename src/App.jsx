@@ -37,12 +37,15 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('swipe'); 
   const [allProfiles, setAllProfiles] = useState([]);
   
+  // State สำหรับเก็บรายชื่อคนที่ถูกปัดไปแล้วในฝั่ง Client ทันที (ป้องกันการโชว์ซ้ำ)
+  const [localSwiped, setLocalSwiped] = useState([]);
+
   const [myProfile, setMyProfile] = useState({ 
     name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
     img: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80', 
     tags: 'หาเพื่อน, ทาสแมว',
     swiped: [],
-    schedule: [] // เก็บข้อมูลนัดหมาย
+    schedule: []
   });
   const [hasProfile, setHasProfile] = useState(false);
 
@@ -61,6 +64,7 @@ export default function App() {
 
   // --- Refs ---
   const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   // --- Effects ---
   useEffect(() => {
@@ -77,7 +81,12 @@ export default function App() {
       const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setAllProfiles(profiles);
       const myDoc = profiles.find(p => p.uid === user.uid);
-      if (myDoc) { setMyProfile({swiped: [], schedule: [], ...myDoc}); setHasProfile(true); } 
+      if (myDoc) { 
+        setMyProfile({swiped: [], schedule: [], ...myDoc}); 
+        setHasProfile(true); 
+        // อัปเดตรายชื่อคนที่เคยปัดแล้วเข้า Local State
+        if (myDoc.swiped) setLocalSwiped(myDoc.swiped);
+      } 
       else { setHasProfile(false); setActiveTab('profile'); }
     });
 
@@ -126,6 +135,19 @@ export default function App() {
     }
   };
 
+  // ฟังก์ชันเลือกไฟล์รูปภาพจากเครื่อง
+  const handleImageFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // แปลงไฟล์เป็น Base64 Data URL เพื่อแสดงผลและบันทึกลง Firestore
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setMyProfile(prev => ({ ...prev, img: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (!myProfile.name.trim()) return;
@@ -137,9 +159,16 @@ export default function App() {
     } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
   };
 
+  // ฟังก์ชันปัด (แก้ให้ตัดคนที่ปัดแล้วออกจากหน้าจอทันที ไม่ซ้ำแน่นอน)
   const handleSwipe = async (targetUid, isLike) => {
     try {
+      // 1. เพิ่มเข้า Local State ทันทีเพื่อให้คนนั้นหายไปจากหน้าจอทันที ไม่เจอซ้ำ
+      setLocalSwiped(prev => [...prev, targetUid]);
+
+      // 2. บันทึกลง Firestore Database
       await updateDoc(doc(db, 'users', user.uid), { swiped: arrayUnion(targetUid) });
+
+      // 3. ถ้ากดถูกใจ ให้สร้างห้องแชทและวาร์ปไปหน้าแชท
       if (isLike) {
         const newMatchRef = await addDoc(collection(db, 'matches'), { 
           participants: [user.uid, targetUid], matchedAt: serverTimestamp() 
@@ -164,7 +193,6 @@ export default function App() {
     if (!newEvent.title || !newEvent.date) return;
     try {
         const updatedSchedule = [...(myProfile.schedule || []), newEvent];
-        // เรียงลำดับวันที่จากใกล้ไปไกล
         updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
         
         await updateDoc(doc(db, 'users', user.uid), { schedule: updatedSchedule });
@@ -178,8 +206,8 @@ export default function App() {
     setAiSuggestion(questions[Math.floor(Math.random() * questions.length)]);
   };
 
-  const swipedList = myProfile.swiped || [];
-  const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !swipedList.includes(p.uid));
+  // คัดกรองโปรไฟล์: ต้องไม่ใช่ตัวเอง และต้องไม่อยู่ใน localSwiped (คนที่เคยปัดไปแล้ว)
+  const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
   const currentProfile = othersProfiles[0]; 
 
   // --- UI Components ---
@@ -276,7 +304,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บนัดหมาย (ปฏิทินที่แก้ไขและลงวันที่ได้) */}
+        {/* แท็บนัดหมาย */}
         {activeTab === 'schedule' && (
           <div className="flex flex-col gap-4 h-full">
             <div className="bg-white rounded-[2.5rem] p-6 shadow-xl text-slate-900">
@@ -284,7 +312,6 @@ export default function App() {
                 <span className="text-[#FF4500]">ตารางนัดหมาย 📅</span>
               </h2>
               
-              {/* ฟอร์มเพิ่มนัดหมาย */}
               <form onSubmit={handleAddEvent} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 mb-6 flex flex-col gap-3">
                 <h3 className="font-bold text-xs text-slate-700">+ เพิ่มกิจกรรมใหม่</h3>
                 <div className="flex gap-2">
@@ -295,7 +322,6 @@ export default function App() {
                 <button type="submit" className="bg-[#FF4500] text-white py-2.5 rounded-xl text-xs font-black shadow-sm hover:opacity-90">บันทึกลงปฏิทิน</button>
               </form>
 
-              {/* รายการนัดหมาย */}
               <h3 className="font-bold text-sm mb-3 text-slate-800">กิจกรรมของคุณ</h3>
               <div className="flex flex-col gap-3">
                 {(!myProfile.schedule || myProfile.schedule.length === 0) ? (
@@ -382,7 +408,6 @@ export default function App() {
                             <div ref={messagesEndRef} />
                         </div>
 
-                        {/* พื้นที่พิมพ์แชทแบบยกสูงหลบเมนู */}
                         <form onSubmit={sendMessage} className="p-3 pb-24 bg-white flex gap-2 items-center border-t border-slate-100 z-30 shadow-[0_-4px_10px_rgba(0,0,0,0.02)]">
                             <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 px-4 py-3.5 rounded-full text-xs outline-none font-medium text-slate-800 focus:ring-1 focus:ring-[#FF4500]" placeholder="พิมพ์ข้อความ..." />
                             <button type="submit" disabled={!inputText.trim()} className="bg-[#FF4500] disabled:opacity-50 text-white w-11 h-11 rounded-full flex items-center justify-center font-black shadow-md hover:bg-orange-600 transition">➤</button>
@@ -408,22 +433,40 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บโปรไฟล์ */}
+        {/* แท็บโปรไฟล์ (อัปโหลดรูปจากเครื่องได้แล้ว) */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[2.5rem] p-6 shadow-xl pb-8">
             <div className="text-center mb-6 border-b border-slate-100 pb-6">
-              <div className="w-24 h-24 bg-[#FF4500]/10 rounded-[2rem] mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-inner border border-[#FF4500]/20">
-                {myProfile.img ? <img src={myProfile.img} className="w-full h-full object-cover" /> : <span className="text-4xl">🐱</span>}
+              
+              {/* รูปโปรไฟล์ + ปุ่มเปลี่ยนรูป */}
+              <div className="relative w-28 h-28 mx-auto mb-3">
+                <div className="w-full h-full bg-[#FF4500]/10 rounded-[2rem] overflow-hidden shadow-inner border-2 border-[#FF4500]">
+                  {myProfile.img ? <img src={myProfile.img} className="w-full h-full object-cover" /> : <div className="flex items-center justify-center h-full text-4xl">🐱</div>}
+                </div>
+                <button 
+                  type="button" 
+                  onClick={() => fileInputRef.current.click()} 
+                  className="absolute bottom-0 right-0 bg-[#FF4500] text-white w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-md hover:scale-110 transition-transform"
+                >
+                  📷
+                </button>
               </div>
+
+              {/* Input ซ่อนสำหรับเลือกรูปภาพ */}
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageFileChange} 
+                accept="image/*" 
+                className="hidden" 
+              />
+
               <h2 className="text-2xl font-black text-[#FF4500]">{myProfile.name || 'ชื่อของคุณ'}</h2>
-              <p className="text-xs text-slate-500 font-bold mt-1">อัปเดตโปรไฟล์ให้เพื่อนจำได้!</p>
+              <p className="text-xs text-slate-500 font-bold mt-1">แตะไอคอนกล้อง 📷 เพื่อเปลี่ยนรูปโปรไฟล์</p>
             </div>
 
             <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 text-sm font-bold">
-                <label className="text-[10px] text-slate-500 -mb-3 ml-2">URL รูปโปรไฟล์ (วางลิงก์รูปภาพ)</label>
-                <input type="url" value={myProfile.img} onChange={e => setMyProfile({...myProfile, img: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="https://..." />
-                
-                <label className="text-[10px] text-slate-500 -mb-3 ml-2 mt-2">ชื่อเล่น</label>
+                <label className="text-[10px] text-slate-500 -mb-3 ml-2">ชื่อเล่น</label>
                 <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="ชื่อเล่น" required />
                 
                 <div className="flex gap-3">
