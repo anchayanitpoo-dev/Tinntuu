@@ -41,21 +41,9 @@ const DEFAULT_PROFILE = {
 };
 
 const ICEBREAKERS_BY_CATEGORY = {
-  food: [
-    "ช่วงนี้มีร้านชาบูเด็ดๆ แถวเชียงรากแนะนำมั้ย?",
-    "ยามเย็นปกติชอบกินข้าวที่ใต้หอหรือไปยูเซนเตอร์?",
-    "เคยกินป้าต๋อยยัง เมนูไหนอร่อยสุดเหรอ?"
-  ],
-  study: [
-    "ลงวิชา TU100/TU106 เซกไหนไปเหรอ?",
-    "สัปดาห์นี้มีสอบมิดเทอมมั้ย อ่านหนังสือถึงไหนแล้ว?",
-    "มีที่อ่านหนังสือเงียบๆ แนะนำในมหาลัยมั้ย?"
-  ],
-  cat: [
-    "เป็นทาสแมวสายไหนเหรอ แมวส้ม แมวสามสี หรือแมวลายสลิด?",
-    "เคยเจอน้องแมวประจำคณะเรายัง น้องกวนมากเลยนะ!",
-    "ถ้าเลี้ยงแมวได้ 1 ตัว อยากตั้งชื่อว่าอะไร?"
-  ]
+  food: ["ช่วงนี้มีร้านชาบูเด็ดๆ แถวเชียงรากแนะนำมั้ย?", "ยามเย็นปกติชอบกินข้าวที่ใต้หอหรือไปยูเซนเตอร์?", "เคยกินป้าต๋อยยัง เมนูไหนอร่อยสุดเหรอ?"],
+  study: ["ลงวิชา TU100/TU106 เซกไหนไปเหรอ?", "สัปดาห์นี้มีสอบมิดเทอมมั้ย อ่านหนังสือถึงไหนแล้ว?", "มีที่อ่านหนังสือเงียบๆ แนะนำในมหาลัยมั้ย?"],
+  cat: ["เป็นทาสแมวสายไหนเหรอ แมวส้ม แมวสามสี หรือแมวลายสลิด?", "เคยเจอน้องแมวประจำคณะเรายัง น้องกวนมากเลยนะ!", "ถ้าเลี้ยงแมวได้ 1 ตัว อยากตั้งชื่อว่าอะไร?"]
 };
 
 export default function App() {
@@ -85,10 +73,14 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState(null);
   const [questDone, setQuestDone] = useState({ practice: false, chat: false });
 
-  // --- States สำหรับคู่มือและแจ้งปัญหา ---
   const [showManual, setShowManual] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
+
+  // --- States สำหรับระบบปัดหน้าจอ (Swipe) ---
+  const [dragStart, setDragStart] = useState(0);
+  const [dragDelta, setDragDelta] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -177,9 +169,7 @@ export default function App() {
 
   useEffect(() => {
     if (user && currentChatId && activeChatType === 'private') {
-      setDoc(doc(db, 'matches', currentChatId), {
-        [`unread_${user.uid}`]: 0
-      }, { merge: true }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
+      setDoc(doc(db, 'matches', currentChatId), { [`unread_${user.uid}`]: 0 }, { merge: true }).catch(err => console.error("ล้างแจ้งเตือนไม่ได้:", err));
     }
   }, [currentChatId, activeChatType, user]);
 
@@ -261,9 +251,7 @@ export default function App() {
     if (!user || !targetUid || targetUid === user.uid) return;
     try {
       setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
-      await setDoc(doc(db, 'user_private', user.uid), {
-        swiped: arrayUnion(targetUid)
-      }, { merge: true });
+      await setDoc(doc(db, 'user_private', user.uid), { swiped: arrayUnion(targetUid) }, { merge: true });
 
       if (isLike) {
         const matchRef = await addDoc(collection(db, 'matches'), {
@@ -315,11 +303,7 @@ export default function App() {
     try {
         const updatedSchedule = [...(myProfile.schedule || []), newEvent];
         updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-        await setDoc(doc(db, 'user_private', user.uid), {
-          schedule: updatedSchedule
-        }, { merge: true });
-
+        await setDoc(doc(db, 'user_private', user.uid), { schedule: updatedSchedule }, { merge: true });
         setNewEvent({ title: '', date: '', time: '' });
         alert('เพิ่มนัดหมายแล้ว 📅');
     } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
@@ -327,24 +311,13 @@ export default function App() {
 
   const createGroupRoom = async () => {
     const roomName = newRoomName.trim();
-    if (!user || !roomName) {
-      alert('กรุณากรอกชื่อห้อง');
-      return;
-    }
+    if (!user || !roomName) { alert('กรุณากรอกชื่อห้อง'); return; }
     try {
       const roomRef = await addDoc(collection(db, 'group_chats'), {
-        room_name: roomName,
-        createdBy: user.uid,
-        members: [user.uid],
-        createdAt: serverTimestamp()
+        room_name: roomName, createdBy: user.uid, members: [user.uid], createdAt: serverTimestamp()
       });
-      setNewRoomName('');
-      setCurrentChatId(roomRef.id);
-      setActiveChatType('group_chat');
-    } catch (err) {
-      console.error(err);
-      alert('สร้างห้องไม่สำเร็จ');
-    }
+      setNewRoomName(''); setCurrentChatId(roomRef.id); setActiveChatType('group_chat');
+    } catch (err) { console.error(err); alert('สร้างห้องไม่สำเร็จ'); }
   };
 
   const generateCategoryQuestion = (category) => {
@@ -366,28 +339,45 @@ export default function App() {
     setInputText(replies[Math.floor(Math.random() * replies.length)]);
   };
 
-  // --- ฟังก์ชันสำหรับส่งรายงานปัญหา ---
   const handleReportSubmit = async (e) => {
     e.preventDefault();
     if (!reportText.trim()) return;
     try {
       await addDoc(collection(db, 'reports'), {
-        uid: user.uid,
-        name: myProfile.name || 'Anonymous',
-        text: reportText,
-        createdAt: serverTimestamp()
+        uid: user.uid, name: myProfile.name || 'Anonymous', text: reportText, createdAt: serverTimestamp()
       });
-      setReportText('');
-      setShowReport(false);
+      setReportText(''); setShowReport(false);
       alert('ส่งข้อเสนอแนะให้ผู้พัฒนาเรียบร้อยแล้ว เมี๊ยว! ขอบคุณมากครับ 🐾');
-    } catch (error) {
-      console.error(error);
-      alert('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่');
-    }
+    } catch (error) { console.error(error); alert('เกิดข้อผิดพลาดในการส่งข้อมูล กรุณาลองใหม่'); }
   };
 
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
   const currentProfile = othersProfiles[0]; 
+
+  // --- ฟังก์ชันจัดการการเลื่อนนิ้ว (Swipe Gestures) ---
+  const handleDragStart = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    setDragStart(clientX);
+    setIsDragging(true);
+  };
+
+  const handleDragMove = (e) => {
+    if (!isDragging) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    setDragDelta(clientX - dragStart);
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    const SWIPE_THRESHOLD = 120; // ระยะที่ต้องลากถึงจะถือว่าปัดสำเร็จ
+    if (dragDelta > SWIPE_THRESHOLD) {
+      handleSwipe(currentProfile?.uid, true); // ปัดขวา = ถูกใจ
+    } else if (dragDelta < -SWIPE_THRESHOLD) {
+      handleSwipe(currentProfile?.uid, false); // ปัดซ้าย = ข้าม
+    }
+    setDragDelta(0); // รีเซ็ตตำแหน่งกาด
+  };
 
   if (authLoading) return (
     <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-3">
@@ -411,9 +401,7 @@ export default function App() {
             <h1 className="text-4xl font-black text-black tracking-tight flex items-center justify-center gap-2">
               TINNTUU <span className="text-2xl">🐾</span>
             </h1>
-            <p className="text-[11px] text-[#FF4500] font-extrabold uppercase tracking-widest mt-1">
-              Cat Speech Assistant TU Social
-            </p>
+            <p className="text-[11px] text-[#FF4500] font-extrabold uppercase tracking-widest mt-1">Cat Speech Assistant TU Social</p>
           </div>
           <form onSubmit={handleAuth} className="space-y-3">
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="อีเมล (TU Email)" required />
@@ -448,7 +436,6 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900 overflow-x-hidden">
       
-      {/* Header อัปเดตใหม่ เพิ่มปุ่มคู่มือและแจ้งปัญหา */}
       <header className="px-5 py-4 flex justify-between items-center sticky top-0 z-40 bg-gradient-to-r from-[#E63946] to-[#FF4500] border-b-2 border-black/20 shadow-md">
         <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)]">
           TINNTUU <span className="text-xl">😼</span>
@@ -463,7 +450,6 @@ export default function App() {
         </div>
       </header>
 
-      {/* แจ้งเตือนข้อความใหม่ */}
       {toastMsg && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-black text-amber-300 px-6 py-3 rounded-full text-xs font-black shadow-2xl z-[100] border-2 border-white animate-bounce flex items-center gap-2">
           <span>{toastMsg}</span>
@@ -494,14 +480,40 @@ export default function App() {
             </div>
 
             {currentProfile ? (
-              <div className="bg-white rounded-[3rem] p-4 pb-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col relative overflow-hidden">
-                <div className="absolute top-6 right-6 bg-amber-300 border-2 border-black text-black text-[10px] px-3.5 py-1 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <div 
+                className="bg-white rounded-[3rem] p-4 pb-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] flex flex-col relative overflow-hidden cursor-grab active:cursor-grabbing touch-pan-y"
+                style={{
+                  transform: `translateX(${dragDelta}px) rotate(${dragDelta * 0.05}deg)`,
+                  transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+                  opacity: isDragging ? 1 - Math.abs(dragDelta) / 800 : 1, // จางลงเล็กน้อยตอนลาก
+                }}
+                onTouchStart={handleDragStart}
+                onTouchMove={handleDragMove}
+                onTouchEnd={handleDragEnd}
+                onMouseDown={handleDragStart}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+              >
+                {/* ลายน้ำแจ้งสถานะตอนลาก */}
+                {dragDelta > 50 && (
+                  <div className="absolute top-10 left-6 z-20 border-4 border-green-500 text-green-500 font-black text-4xl px-4 py-1 rounded-xl rotate-[-15deg] opacity-80 pointer-events-none">
+                    LIKE 🐾
+                  </div>
+                )}
+                {dragDelta < -50 && (
+                  <div className="absolute top-10 right-6 z-20 border-4 border-red-500 text-red-500 font-black text-4xl px-4 py-1 rounded-xl rotate-[15deg] opacity-80 pointer-events-none">
+                    NOPE 😿
+                  </div>
+                )}
+
+                <div className="absolute top-6 right-6 bg-amber-300 border-2 border-black text-black text-[10px] px-3.5 py-1 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] pointer-events-none">
                   📍 {currentProfile.location}
                 </div>
-                <div className="w-full h-[360px] rounded-[2.5rem] border-2 border-black overflow-hidden mb-4 bg-slate-100">
-                  <img src={currentProfile.img} alt="profile" className="w-full h-full object-cover" />
+                <div className="w-full h-[360px] rounded-[2.5rem] border-2 border-black overflow-hidden mb-4 bg-slate-100 pointer-events-none">
+                  <img src={currentProfile.img} alt="profile" className="w-full h-full object-cover" draggable="false" />
                 </div>
-                <div className="px-2">
+                <div className="px-2 pointer-events-none">
                   <h2 className="text-2xl font-black text-black flex items-center gap-2">
                     {currentProfile.name} <span className="text-lg">🐾</span>
                   </h2>
@@ -511,15 +523,15 @@ export default function App() {
                     <span className="bg-slate-100 border-2 border-black text-black font-black text-[10px] px-3 py-1 rounded-full">🎓 {currentProfile.faculty}</span>
                     <span className="bg-orange-100 border-2 border-black text-[#FF4500] font-black text-[10px] px-3 py-1 rounded-full">🏷 {currentProfile.tags}</span>
                   </div>
+                </div>
 
-                  <div className="flex gap-3">
-                    <button onClick={() => handleSwipe(currentProfile.uid, false)} className="flex-1 py-3.5 bg-slate-200 text-slate-700 border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                      ข้ามไปก่อน (Skip) 😼
-                    </button>
-                    <button onClick={() => handleSwipe(currentProfile.uid, true)} className="flex-1 py-3.5 bg-[#FF4500] hover:bg-[#E63946] text-white border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
-                      ถูกใจ (Match) 🐾
-                    </button>
-                  </div>
+                <div className="flex gap-3 px-2 z-20">
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="flex-1 py-3.5 bg-slate-200 text-slate-700 border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                    ข้ามไปก่อน (Skip) 😼
+                  </button>
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="flex-1 py-3.5 bg-[#FF4500] hover:bg-[#E63946] text-white border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all">
+                    ถูกใจ (Match) 🐾
+                  </button>
                 </div>
               </div>
             ) : (
@@ -783,7 +795,7 @@ export default function App() {
             <div className="space-y-4 text-xs font-bold text-slate-800">
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
                 <p className="font-black text-black mb-1">🐾 หาเพื่อน (Swipe)</p>
-                <p className="text-[10px]">เลื่อนซ้ายเพื่อข้าม เลื่อนขวาเพื่อส่งใจ หากใจตรงกันจะได้เริ่มแชทเลย!</p>
+                <p className="text-[10px]">เลื่อนกาดไปทางซ้ายเพื่อข้าม เลื่อนไปทางขวาเพื่อส่งใจ หากใจตรงกันจะได้เริ่มแชทเลย!</p>
               </div>
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl">
                 <p className="font-black text-black mb-1">📅 นัดหมาย (Schedule)</p>
