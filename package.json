@@ -1,4 +1,3 @@
-```json
 {
   "name": "tinntuu-web",
   "private": true,
@@ -22,4 +21,3 @@
     "vite": "^5.1.4"
   }
 }
-```
