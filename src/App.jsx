@@ -3,7 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, updateDoc, arrayUnion
+  enableIndexedDbPersistence, where, updateDoc, arrayUnion,
+  deleteField
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -36,8 +37,6 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('swipe'); 
   const [allProfiles, setAllProfiles] = useState([]);
-  
-  // State สำหรับเก็บรายชื่อคนที่ถูกปัดไปแล้วในฝั่ง Client ทันที
   const [localSwiped, setLocalSwiped] = useState([]);
 
   const [myProfile, setMyProfile] = useState({ 
@@ -49,7 +48,6 @@ export default function App() {
   });
   const [hasProfile, setHasProfile] = useState(false);
 
-  // Calendar State
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
 
   const [matches, setMatches] = useState([]);
@@ -62,7 +60,6 @@ export default function App() {
   
   const [aiSuggestion, setAiSuggestion] = useState('');
 
-  // --- Refs ---
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -75,19 +72,22 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // โหลดข้อมูล Public
   useEffect(() => {
     if (!user) return;
-    const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), (snapshot) => {
-      const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), snapshot => {
+      const profiles = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       setAllProfiles(profiles);
       const myDoc = profiles.find(p => p.uid === user.uid);
-      if (myDoc) { 
-        setMyProfile({swiped: [], schedule: [], ...myDoc}); 
-        setHasProfile(true); 
-        if (myDoc.swiped) setLocalSwiped(myDoc.swiped);
-      } 
-      else { setHasProfile(false); setActiveTab('profile'); }
-    });
+
+      if (myDoc) {
+        setMyProfile(prev => ({ ...prev, ...myDoc }));
+        setHasProfile(true);
+      } else {
+        setHasProfile(false);
+        setActiveTab('profile');
+      }
+    }, error => console.error('โหลดโปรไฟล์ไม่สำเร็จ:', error));
 
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -100,6 +100,29 @@ export default function App() {
     return () => { unsubProfiles(); unsubMatches(); unsubGroups(); };
   }, [user]);
 
+  // โหลดข้อมูล Private
+  useEffect(() => {
+    if (!user) {
+      setLocalSwiped([]);
+      setMyProfile(prev => ({ ...prev, swiped: [], schedule: [] }));
+      return;
+    }
+
+    const unsub = onSnapshot(doc(db, 'user_private', user.uid), snapshot => {
+      const data = snapshot.exists() ? snapshot.data() : {};
+      const swiped = data.swiped || [];
+      setLocalSwiped(swiped);
+      setMyProfile(prev => ({
+        ...prev,
+        swiped,
+        schedule: data.schedule || []
+      }));
+    }, error => console.error('โหลดข้อมูลส่วนตัวไม่สำเร็จ:', error));
+
+    return () => unsub();
+  }, [user]);
+
+  // โหลดข้อความแชท
   useEffect(() => {
     if (!user || !currentChatId || (activeChatType !== 'private' && activeChatType !== 'group_chat')) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -123,63 +146,74 @@ export default function App() {
         await createUserWithEmailAndPassword(auth, email, password);
         alert('สร้างบัญชีสำเร็จ! ยินดีต้อนรับ 🐾');
       }
-    } catch (err) { 
-        if(err.code === 'auth/email-already-in-use') {
-            alert('อีเมลนี้ถูกใช้งานไปแล้ว (1 คนสมัครได้ 1 บัญชีเท่านั้น) กรุณาล็อกอินแทนครับ');
-        } else if (err.code === 'auth/wrong-password') {
-            alert('รหัสผ่านไม่ถูกต้อง');
-        } else {
-            alert(err.message); 
-        }
-    }
+    } catch (err) { alert(err.message); }
   };
 
   const handleImageFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setMyProfile(prev => ({ ...prev, img: reader.result }));
-      };
+      reader.onloadend = () => setMyProfile(prev => ({ ...prev, img: reader.result }));
       reader.readAsDataURL(file);
     }
   };
 
   const handleSaveProfile = async (e) => {
     e.preventDefault();
-    if (!myProfile.name.trim()) return;
+    if (!user || !myProfile.name.trim()) return;
+
     try {
-      await setDoc(doc(db, 'users', user.uid), { ...myProfile, uid: user.uid, updatedAt: serverTimestamp() }, { merge: true });
-      if (!hasProfile) setActiveTab('swipe');
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        name: myProfile.name.trim(),
+        faculty: myProfile.faculty || '',
+        location: myProfile.location || '',
+        bio: myProfile.bio || '',
+        img: myProfile.img || '',
+        tags: myProfile.tags || '',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+
+      // สร้างเอกสารส่วนตัวแยกต่างหาก ไม่เปิดเผยให้ผู้ใช้อื่นอ่าน
+      await setDoc(doc(db, 'user_private', user.uid), {
+        swiped: myProfile.swiped || [],
+        schedule: myProfile.schedule || []
+      }, { merge: true });
+
       setHasProfile(true);
+      setActiveTab('swipe');
       alert('บันทึกโปรไฟล์สำเร็จ 🐾');
-    } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
+    } catch (err) {
+      console.error(err);
+      alert('บันทึกโปรไฟล์ไม่สำเร็จ');
+    }
   };
 
-  // ป้องกันการสร้าง Match ซ้ำ และตัดคนที่ปัดแล้วออกจากหน้าจอทันที
   const handleSwipe = async (targetUid, isLike) => {
+    if (!user || !targetUid || targetUid === user.uid) return;
+
     try {
-      setLocalSwiped(prev => [...prev, targetUid]);
-      await updateDoc(doc(db, 'users', user.uid), { swiped: arrayUnion(targetUid) });
+      setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
+
+      await setDoc(doc(db, 'user_private', user.uid), {
+        swiped: arrayUnion(targetUid)
+      }, { merge: true });
 
       if (isLike) {
-        // เช็กก่อนว่ามี Match กับคนนี้อยู่แล้วหรือไม่
-        const existingMatch = matches.find(m => m.participants.includes(targetUid));
-        
-        let matchId = existingMatch?.id;
-        if (!matchId) {
-          const newMatchRef = await addDoc(collection(db, 'matches'), { 
-            participants: [user.uid, targetUid], 
-            matchedAt: serverTimestamp() 
-          });
-          matchId = newMatchRef.id;
-        }
+        const matchRef = await addDoc(collection(db, 'matches'), {
+          participants: [user.uid, targetUid],
+          matchedAt: serverTimestamp()
+        });
 
-        setCurrentChatId(matchId);
+        setCurrentChatId(matchRef.id);
         setActiveChatType('private');
         setActiveTab('chat');
       }
-    } catch (err) { alert("ระบบปัดขัดข้อง กรุณาลองใหม่"); }
+    } catch (err) {
+      console.error(err);
+      setLocalSwiped(prev => prev.filter(id => id !== targetUid));
+      alert('ระบบปัดขัดข้อง กรุณาลองใหม่');
+    }
   };
 
   const sendMessage = async (e) => {
@@ -196,11 +230,38 @@ export default function App() {
     try {
         const updatedSchedule = [...(myProfile.schedule || []), newEvent];
         updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
-        
-        await updateDoc(doc(db, 'users', user.uid), { schedule: updatedSchedule });
+
+        await setDoc(doc(db, 'user_private', user.uid), {
+          schedule: updatedSchedule
+        }, { merge: true });
+
         setNewEvent({ title: '', date: '', time: '' });
         alert('เพิ่มนัดหมายแล้ว 📅');
     } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
+  };
+
+  const createGroupRoom = async () => {
+    const roomName = newRoomName.trim();
+    if (!user || !roomName) {
+      alert('กรุณากรอกชื่อห้อง');
+      return;
+    }
+
+    try {
+      const roomRef = await addDoc(collection(db, 'group_chats'), {
+        room_name: roomName,
+        createdBy: user.uid,
+        members: [user.uid],
+        createdAt: serverTimestamp()
+      });
+
+      setNewRoomName('');
+      setCurrentChatId(roomRef.id);
+      setActiveChatType('group_chat');
+    } catch (err) {
+      console.error(err);
+      alert('สร้างห้องไม่สำเร็จ');
+    }
   };
 
   const generateAiNextQuestion = () => {
@@ -238,7 +299,6 @@ export default function App() {
     );
   }
 
-  // ดึงรายชื่อเพื่อนคู่สนทนาที่ไม่ซ้ำกันสำหรับแสดงรายการแชท
   const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
 
   return (
@@ -253,7 +313,6 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-4">
-        
         {/* แท็บหาเพื่อน */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col gap-4">
@@ -322,14 +381,14 @@ export default function App() {
                     <input type="date" value={newEvent.date} onChange={e=>setNewEvent({...newEvent, date: e.target.value})} className="flex-1 bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" required/>
                     <input type="time" value={newEvent.time} onChange={e=>setNewEvent({...newEvent, time: e.target.value})} className="w-24 bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" />
                 </div>
-                <input type="text" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} placeholder="ชื่อกิจกรรม (เช่น กินชาบู, ติวหนังสือ)" className="bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" required/>
+                <input type="text" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} placeholder="ชื่อกิจกรรม" className="bg-white px-3 py-2 rounded-xl text-xs outline-none border border-slate-200" required/>
                 <button type="submit" className="bg-[#FF4500] text-white py-2.5 rounded-xl text-xs font-black shadow-sm hover:opacity-90">บันทึกลงปฏิทิน</button>
               </form>
 
               <h3 className="font-bold text-sm mb-3 text-slate-800">กิจกรรมของคุณ</h3>
               <div className="flex flex-col gap-3">
                 {(!myProfile.schedule || myProfile.schedule.length === 0) ? (
-                    <div className="text-center text-slate-400 text-xs py-4">ยังไม่มีนัดหมาย ลองเพิ่มกิจกรรมดูสิ!</div>
+                    <div className="text-center text-slate-400 text-xs py-4">ยังไม่มีนัดหมาย</div>
                 ) : (
                     myProfile.schedule.map((event, idx) => (
                         <div key={idx} className="bg-white border border-[#FF4500]/20 rounded-2xl p-4 flex items-center gap-4 shadow-sm relative overflow-hidden">
@@ -350,7 +409,7 @@ export default function App() {
           </div>
         )}
 
-        {/* แท็บแชท (กรองการซ้ำซ้อนเรียบร้อยแล้ว) */}
+        {/* แท็บแชท */}
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[2.5rem] overflow-hidden flex flex-col h-[calc(100vh-170px)] shadow-xl relative">
                 <div className="flex p-2 bg-slate-50 gap-2 border-b border-slate-100">
@@ -366,11 +425,7 @@ export default function App() {
                             if(!otherProfile) return null;
                             const targetMatch = matches.find(m => m.participants.includes(otherUid));
                             return (
-                                <div 
-                                  key={otherUid} 
-                                  onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} 
-                                  className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors border-b border-slate-50"
-                                >
+                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-50 transition-colors border-b border-slate-50">
                                     <img src={otherProfile.img} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-100" />
                                     <span className="font-black text-sm text-slate-800">{otherProfile.name}</span>
                                 </div>
@@ -383,7 +438,7 @@ export default function App() {
                     <div className="p-4 flex-1 overflow-y-auto flex flex-col">
                         <div className="flex gap-2 mb-4">
                             <input value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} placeholder="ชื่อห้องกลุ่ม" className="bg-slate-100 px-4 py-3 rounded-full text-xs flex-1 outline-none font-bold text-slate-800" />
-                            <button className="bg-[#FF4500] text-white px-5 rounded-full text-xs font-black shadow-md">สร้าง</button>
+                            <button type="button" onClick={createGroupRoom} className="bg-[#FF4500] text-white px-5 rounded-full text-xs font-black shadow-md">สร้าง</button>
                         </div>
                         <div className="flex-1 space-y-3">
                             {groupRooms.map(room => (
@@ -458,16 +513,9 @@ export default function App() {
                 </button>
               </div>
 
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                onChange={handleImageFileChange} 
-                accept="image/*" 
-                className="hidden" 
-              />
+              <input type="file" ref={fileInputRef} onChange={handleImageFileChange} accept="image/*" className="hidden" />
 
               <h2 className="text-2xl font-black text-[#FF4500]">{myProfile.name || 'ชื่อของคุณ'}</h2>
-              <p className="text-xs text-slate-500 font-bold mt-1">แตะไอคอนกล้อง 📷 เพื่อเปลี่ยนรูปโปรไฟล์</p>
             </div>
 
             <form onSubmit={handleSaveProfile} className="flex flex-col gap-4 text-sm font-bold">
@@ -475,10 +523,10 @@ export default function App() {
                 <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="ชื่อเล่น" required />
                 
                 <div className="flex gap-3">
-                    <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="คณะ" />
-                    <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 border border-slate-100" placeholder="หอพัก" />
+                    <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none border border-slate-100" placeholder="คณะ" />
+                    <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none border border-slate-100" placeholder="หอพัก" />
                 </div>
-                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none focus:bg-slate-100 focus:ring-1 focus:ring-[#FF4500] text-slate-800 resize-none border border-slate-100" placeholder="Bio สั้นๆ" />
+                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 px-5 py-4 rounded-2xl outline-none resize-none border border-slate-100" placeholder="Bio สั้นๆ" />
                 
                 <button type="submit" className="bg-gradient-to-r from-[#FF4500] to-[#FF7043] text-white py-4 rounded-full font-black text-xs shadow-md mt-4 hover:opacity-90 transition">บันทึกตัวตน 🐾</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-100 text-slate-500 py-4 rounded-full font-black text-xs mt-2 hover:bg-slate-200">ออกจากระบบ</button>
