@@ -3,7 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, updateDoc, arrayUnion
+  enableIndexedDbPersistence, where, updateDoc, arrayUnion,
+  deleteField
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -77,18 +78,27 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    const unsubProfiles = onSnapshot(query(collection(db, 'users'), limit(100)), (snapshot) => {
-      const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setAllProfiles(profiles);
-      const myDoc = profiles.find(p => p.uid === user.uid);
-      if (myDoc) { 
-        setMyProfile({swiped: [], schedule: [], ...myDoc}); 
-        setHasProfile(true); 
-        // อัปเดตรายชื่อคนที่เคยปัดแล้วเข้า Local State
-        if (myDoc.swiped) setLocalSwiped(myDoc.swiped);
-      } 
-      else { setHasProfile(false); setActiveTab('profile'); }
-    });
+const unsubProfiles = onSnapshot(
+  query(collection(db, 'users'), limit(100)),
+  snapshot => {
+    const profiles = snapshot.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    setAllProfiles(profiles);
+    const myDoc = profiles.find(p => p.uid === user.uid);
+
+    if (myDoc) {
+      setMyProfile(prev => ({ ...prev, ...myDoc }));
+      setHasProfile(true);
+    } else {
+      setHasProfile(false);
+      setActiveTab('profile');
+    }
+  },
+  error => console.error('โหลดโปรไฟล์ไม่สำเร็จ:', error)
+);
 
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -113,6 +123,31 @@ export default function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, activeChatType]);
+  
+useEffect(() => {
+  if (!user) {
+    setLocalSwiped([]);
+    setMyProfile(prev => ({ ...prev, swiped: [], schedule: [] }));
+    return;
+  }
+
+  const unsub = onSnapshot(
+    doc(db, 'user_private', user.uid),
+    snapshot => {
+      const data = snapshot.exists() ? snapshot.data() : {};
+      const swiped = data.swiped || [];
+      setLocalSwiped(swiped);
+      setMyProfile(prev => ({
+        ...prev,
+        swiped,
+        schedule: data.schedule || []
+      }));
+    },
+    error => console.error('โหลดข้อมูลส่วนตัวไม่สำเร็จ:', error)
+  );
+
+  return () => unsub();
+}, [user]);
 
   // --- Handlers ---
   const handleAuth = async (e) => {
@@ -149,36 +184,65 @@ export default function App() {
   };
 
   const handleSaveProfile = async (e) => {
-    e.preventDefault();
-    if (!myProfile.name.trim()) return;
-    try {
-      await setDoc(doc(db, 'users', user.uid), { ...myProfile, uid: user.uid, updatedAt: serverTimestamp() }, { merge: true });
-      if (!hasProfile) setActiveTab('swipe');
-      setHasProfile(true);
-      alert('บันทึกโปรไฟล์สำเร็จ 🐾');
-    } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
-  };
+  e.preventDefault();
+  if (!user || !myProfile.name.trim()) return;
+
+  try {
+    await setDoc(doc(db, 'users', user.uid), {
+      uid: user.uid,
+      name: myProfile.name.trim(),
+      faculty: myProfile.faculty || '',
+      location: myProfile.location || '',
+      bio: myProfile.bio || '',
+      img: myProfile.img || '',
+      tags: myProfile.tags || '',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    // สร้างเอกสารส่วนตัวแยกต่างหาก ไม่เปิดเผยให้ผู้ใช้อื่นอ่าน
+    await setDoc(doc(db, 'user_private', user.uid), {
+      swiped: myProfile.swiped || [],
+      schedule: myProfile.schedule || []
+    }, { merge: true });
+
+    setHasProfile(true);
+    setActiveTab('swipe');
+    alert('บันทึกโปรไฟล์สำเร็จ 🐾');
+  } catch (err) {
+    console.error(err);
+    alert('บันทึกโปรไฟล์ไม่สำเร็จ');
+  }
+};
 
   // ฟังก์ชันปัด (แก้ให้ตัดคนที่ปัดแล้วออกจากหน้าจอทันที ไม่ซ้ำแน่นอน)
   const handleSwipe = async (targetUid, isLike) => {
-    try {
-      // 1. เพิ่มเข้า Local State ทันทีเพื่อให้คนนั้นหายไปจากหน้าจอทันที ไม่เจอซ้ำ
-      setLocalSwiped(prev => [...prev, targetUid]);
+  if (!user || !targetUid || targetUid === user.uid) return;
 
-      // 2. บันทึกลง Firestore Database
-      await updateDoc(doc(db, 'users', user.uid), { swiped: arrayUnion(targetUid) });
+  try {
+    setLocalSwiped(prev =>
+      prev.includes(targetUid) ? prev : [...prev, targetUid]
+    );
 
-      // 3. ถ้ากดถูกใจ ให้สร้างห้องแชทและวาร์ปไปหน้าแชท
-      if (isLike) {
-        const newMatchRef = await addDoc(collection(db, 'matches'), { 
-          participants: [user.uid, targetUid], matchedAt: serverTimestamp() 
-        });
-        setCurrentChatId(newMatchRef.id);
-        setActiveChatType('private');
-        setActiveTab('chat');
-      }
-    } catch (err) { alert("ระบบปัดขัดข้อง กรุณาลองใหม่"); }
-  };
+    await setDoc(doc(db, 'user_private', user.uid), {
+      swiped: arrayUnion(targetUid)
+    }, { merge: true });
+
+    if (isLike) {
+      const matchRef = await addDoc(collection(db, 'matches'), {
+        participants: [user.uid, targetUid],
+        matchedAt: serverTimestamp()
+      });
+
+      setCurrentChatId(matchRef.id);
+      setActiveChatType('private');
+      setActiveTab('chat');
+    }
+  } catch (err) {
+    console.error(err);
+    setLocalSwiped(prev => prev.filter(id => id !== targetUid));
+    alert('ระบบปัดขัดข้อง กรุณาลองใหม่');
+  }
+};
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -195,9 +259,9 @@ export default function App() {
         const updatedSchedule = [...(myProfile.schedule || []), newEvent];
         updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        await updateDoc(doc(db, 'users', user.uid), { schedule: updatedSchedule });
-        setNewEvent({ title: '', date: '', time: '' });
-        alert('เพิ่มนัดหมายแล้ว 📅');
+        await setDoc(doc(db, 'user_private', user.uid), {
+  schedule: updatedSchedule
+}, { merge: true });
     } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
   };
 
