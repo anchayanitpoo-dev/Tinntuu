@@ -3,12 +3,12 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, updateDoc, arrayUnion,
-  deleteField, deleteDoc
+  enableIndexedDbPersistence, where, arrayUnion,
+  deleteDoc
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
-  onAuthStateChanged, signOut, deleteUser, sendEmailVerification
+  onAuthStateChanged, signOut, deleteUser
 } from 'firebase/auth';
 
 // --- 1. Firebase Config ---
@@ -63,10 +63,9 @@ export default function App() {
 
   const [myProfile, setMyProfile] = useState(DEFAULT_PROFILE);
   const [hasProfile, setHasProfile] = useState(false);
-  const [showGuide, setShowGuide] = useState(false); // Modal คู่มือการใช้งาน
+  const [showGuide, setShowGuide] = useState(false);
 
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
-
   const [matches, setMatches] = useState([]);
   const [activeChatType, setActiveChatType] = useState('list'); 
   const [currentChatId, setCurrentChatId] = useState(null);
@@ -87,12 +86,8 @@ export default function App() {
   // --- Effects ---
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // บังคับยืนยันอีเมล
-      if (currentUser && !currentUser.emailVerified) {
-        setUser(null);
-      } else {
-        setUser(currentUser);
-      }
+      // ✅ เข้าสู่ระบบได้ทันที ไม่ต้องรอคลิกลิงก์ในอีเมล
+      setUser(currentUser);
       setAuthLoading(false);
     });
     return () => unsubscribe();
@@ -155,27 +150,16 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  useEffect(() => {
-    if (user && currentChatId && activeChatType === 'private') {
-      setDoc(doc(db, 'matches', currentChatId), { [`unread_${user.uid}`]: 0 }, { merge: true }).catch(() => {});
-    }
-  }, [currentChatId, activeChatType, user]);
-
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
-
   // --- Auth Handlers ---
   const handleAuth = async (e) => {
     e.preventDefault();
+    // ✅ ใช้อีเมลอะไรก็ได้ ไม่จำกัดแค่มหาลัย
     const cleanEmail = email.trim().toLowerCase();
 
     try {
       if (isLoginMode) {
-        const userCred = await signInWithEmailAndPassword(auth, cleanEmail, password);
-        if (!userCred.user.emailVerified) {
-          alert('กรุณาตรวจสอบตู้จดหมายอีเมลของคุณ และกดลิงก์ยืนยันตัวตนก่อนเข้าใช้งานเมี๊ยว! 📩');
-          await signOut(auth);
-          return;
-        }
+        // ✅ ล็อกอินได้เลย ไม่เช็คว่ากดยืนยันอีเมลหรือยัง
+        await signInWithEmailAndPassword(auth, cleanEmail, password);
       } else {
         if (!regFaculty.trim() || !regAddress.trim()) {
           alert('กรุณากรอกชื่อคณะและแถวที่อยู่ให้ชัดเจนด้วยเมี๊ยว! 📝');
@@ -185,7 +169,6 @@ export default function App() {
         const userCred = await createUserWithEmailAndPassword(auth, cleanEmail, password);
         const newUser = userCred.user;
 
-        // บันทึกข้อมูลตั้งต้นตอนสมัครลง Firestore
         await setDoc(doc(db, 'users', newUser.uid), {
           uid: newUser.uid,
           email: cleanEmail,
@@ -200,8 +183,7 @@ export default function App() {
 
         await setDoc(doc(db, 'user_private', newUser.uid), { swiped: [], schedule: [] });
 
-        await sendEmailVerification(newUser);
-        alert('สร้างบัญชีสำเร็จ! ระบบได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว กรุณาเข้าไปกดยืนยันตัวตนก่อนเข้าใช้งานเมี๊ยว 📩🐾');
+        alert('สร้างบัญชีสำเร็จ! เข้าสู่ระบบได้เลยเมี๊ยว 🐾');
         
         await signOut(auth);
         setIsLoginMode(true);
@@ -261,86 +243,14 @@ export default function App() {
     }
   };
 
-  const handleSwipe = async (targetUid, isLike) => {
-    if (!user || !targetUid || targetUid === user.uid) return;
-    try {
-      setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
-      await setDoc(doc(db, 'user_private', user.uid), { swiped: arrayUnion(targetUid) }, { merge: true });
-
-      if (isLike) {
-        const matchRef = await addDoc(collection(db, 'matches'), { participants: [user.uid, targetUid], matchedAt: serverTimestamp() });
-        setCurrentChatId(matchRef.id);
-        setActiveChatType('private');
-        setActiveTab('chat');
-      }
-    } catch (err) {
-      setLocalSwiped(prev => prev.filter(id => id !== targetUid));
-      alert('ระบบปัดขัดข้อง กรุณาลองใหม่');
-    }
-  };
-
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || !currentChatId) return;
-    const text = inputText; setInputText('');
-    const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
-    
-    await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
-    setQuestDone(prev => ({ ...prev, chat: true }));
-
-    if (activeChatType === 'private') {
-      const currentMatch = matches.find(m => m.id === currentChatId);
-      const targetUid = currentMatch ? currentMatch.participants.find(id => id !== user.uid) : null;
-      if (targetUid) {
-        await setDoc(doc(db, 'matches', currentChatId), { 
-          lastUpdated: serverTimestamp(), lastSender: user.uid, [`unread_${targetUid}`]: (currentMatch[`unread_${targetUid}`] || 0) + 1
-        }, { merge: true });
-      }
-    } else {
-      await setDoc(doc(db, 'group_chats', currentChatId), { lastUpdated: serverTimestamp(), lastSender: user.uid }, { merge: true });
-    }
-  };
-
-  const handleAddEvent = async (e) => {
-    e.preventDefault();
-    if (!newEvent.title || !newEvent.date) return;
-    try {
-        const updatedSchedule = [...(myProfile.schedule || []), newEvent];
-        updatedSchedule.sort((a, b) => new Date(a.date) - new Date(b.date));
-        await setDoc(doc(db, 'user_private', user.uid), { schedule: updatedSchedule }, { merge: true });
-        setNewEvent({ title: '', date: '', time: '' });
-        alert('เพิ่มนัดหมายแล้ว 📅');
-    } catch (err) { alert('เพิ่มนัดหมายไม่สำเร็จ'); }
-  };
-
-  const createGroupRoom = async () => {
-    const roomName = newRoomName.trim();
-    if (!user || !roomName) return alert('กรุณากรอกชื่อห้อง');
-    try {
-      const roomRef = await addDoc(collection(db, 'group_chats'), { room_name: roomName, createdBy: user.uid, members: [user.uid], createdAt: serverTimestamp() });
-      setNewRoomName(''); setCurrentChatId(roomRef.id); setActiveChatType('group_chat');
-    } catch (err) { alert('สร้างห้องไม่สำเร็จ'); }
-  };
-
-  const generateCategoryQuestion = (category) => {
-    const pool = ICEBREAKERS_BY_CATEGORY[category] || ICEBREAKERS_BY_CATEGORY.food;
-    let text = pool[Math.floor(Math.random() * pool.length)];
-    if (catVibe === 'polite') text += " ครับ/ค่ะ 😊";
-    else if (catVibe === 'cat') text = text.replace("เหรอ", "ป่ะเมี๊ยว").replace("มั้ย", "รึเปล่าเมี๊ยว") + " 😼🐾";
-    setAiSuggestion(text);
-    setQuestDone(prev => ({ ...prev, practice: true }));
-  };
-
-  // UI หน้าแจ้งเตือนและคู่มือ (Guide Modal)
   const GuideModal = () => (
     <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
       <div className="bg-white rounded-[2rem] p-6 border-4 border-black max-w-sm w-full shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-h-[85vh] overflow-y-auto">
         <h2 className="text-2xl font-black mb-4 flex items-center gap-2">📖 คู่มือ TINNTUU</h2>
         <ul className="text-xs space-y-3 font-bold text-slate-700">
-           <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>1. การเข้าระบบ:</b> ใช้อีเมลของคุณสมัครได้เลย และต้องกดยืนยันในกล่องจดหมายอีเมลก่อนเข้าใช้งาน</li>
+           <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>1. การเข้าระบบ:</b> ใช้อีเมลอะไรก็ได้สมัคร (เช่น Gmail, Hotmail) สมัครปุ๊บ ล็อกอินเข้าใช้งานได้ทันที</li>
            <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>2. หาเพื่อน:</b> ปัดถูกใจ (Match) หรือข้ามเพื่อนที่ระบบแนะนำได้</li>
            <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>3. ระบบแชท:</b> เมื่อใจตรงกันสามารถแชทส่วนตัว หรือจะไปจอยห้องคุยกลุ่มก็ได้</li>
-           <li className="bg-slate-50 p-2 rounded-xl border-2 border-black"><b>4. บอทฝึกคุย:</b> บอทแมวพร้อมชงประโยคชวนคุยแก้เขินในแท็บไมค์</li>
         </ul>
         
         <div className="mt-5 pt-4 border-t-2 border-black bg-amber-50 p-3 rounded-2xl">
@@ -368,19 +278,17 @@ export default function App() {
           </div>
 
           <form onSubmit={handleAuth} className="space-y-3">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="อีเมลของคุณ" required />
+            {/* ✅ ใช้ type="email" ธรรมดา ทำให้พิมพ์อีเมลอะไรก็ได้ */}
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="อีเมลของคุณ (เช่น Gmail, Outlook)" required />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" required />
             
-            {/* ช่องกรอกเพิ่มเติมสำหรับการสมัครสมาชิก */}
             {!isLoginMode && (
               <div className="space-y-3 pt-2 border-t-2 border-slate-200">
                 <div>
                   <input type="text" value={regFaculty} onChange={e => setRegFaculty(e.target.value)} className="w-full bg-orange-50 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="ชื่อคณะ (เช่น นิติศาสตร์, SIIT)" required />
-                  <p className="text-[10px] text-slate-500 font-bold ml-2 mt-1">* กรอกให้ชัดเจน เพื่อให้เพื่อนร่วมคณะหาง่ายขึ้น</p>
                 </div>
                 <div>
                   <input type="text" value={regAddress} onChange={e => setRegAddress(e.target.value)} className="w-full bg-orange-50 border-2 border-black px-5 py-3 rounded-2xl font-bold" placeholder="ที่พักปัจจุบัน (เช่น หอ JPark, เชียงราก)" required />
-                  <p className="text-[10px] text-slate-500 font-bold ml-2 mt-1">* กรอกพิกัดคร่าวๆ เพื่อหาเพื่อนอยู่โซนเดียวกัน</p>
                 </div>
               </div>
             )}
@@ -394,7 +302,6 @@ export default function App() {
             {isLoginMode ? 'ยังไม่มีบัญชี? สมัครที่นี่เมี๊ยว 🐾' : 'มีบัญชีแล้ว? เข้าสู่ระบบ'}
           </button>
 
-          {/* ปุ่มคู่มือและแจ้งปัญหาด้านล่าง */}
           <div className="mt-8 pt-4 border-t-2 border-slate-200 text-center">
              <button onClick={() => setShowGuide(true)} className="bg-slate-100 px-4 py-2 rounded-full font-black text-xs border-2 border-black shadow-sm flex items-center justify-center mx-auto gap-2">
                 📖 คู่มือการใช้งาน & ติดต่อแจ้งปัญหา
@@ -404,15 +311,6 @@ export default function App() {
       </div>
     );
   }
-
-  // ตัวแปรค้นหาเพื่อน
-  const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
-  const filteredMatches = uniqueMatches.filter(otherUid => {
-    const otherProfile = allProfiles.find(p => p.uid === otherUid);
-    if (!otherProfile) return false;
-    const q = chatSearchQuery.toLowerCase();
-    return otherProfile.name.toLowerCase().includes(q) || (otherProfile.faculty && otherProfile.faculty.toLowerCase().includes(q));
-  });
 
   return (
     <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900">
@@ -425,9 +323,8 @@ export default function App() {
         </button>
       </header>
 
-      {/* Tabs เนื้อหาหลัก... (โค้ดส่วน Swipe, Schedule, Chat, Practice คงเดิมทั้งหมด) */}
       <main className="flex-1 overflow-y-auto px-4 pt-4">
-        {/* แท็บโปรไฟล์ */}
+        {/* หน้าตั้งค่าโปรไฟล์ */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] pb-8">
             <div className="text-center mb-6 border-b-2 border-black pb-6">
@@ -458,10 +355,17 @@ export default function App() {
                 <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none resize-none" placeholder="Bio สั้นๆ" />
                 
                 <button type="submit" className="bg-[#FF4500] text-white border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-3">บันทึกตัวตน 🐾</button>
-                <button type="button" onClick={() => setShowGuide(true)} className="bg-amber-100 text-black border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">📖 ดูคู่มือ / ติดต่อแอดมินแจ้งปัญหา</button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-200 text-black border-2 border-black py-3.5 rounded-full font-black text-xs mt-4">ออกจากระบบ</button>
                 <button type="button" onClick={handleDeleteAccount} className="bg-red-50 text-red-600 border-2 border-red-300 py-3 rounded-full font-bold text-xs mt-1">ลบบัญชีผู้ใช้</button>
             </form>
+          </div>
+        )}
+        
+        {activeTab !== 'profile' && (
+          <div className="bg-white rounded-[2rem] p-8 border-4 border-black text-center mt-10 shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
+             <h2 className="text-xl font-black mb-4">ยินดีต้อนรับเข้าสู่ระบบ 🐾</h2>
+             <p className="font-bold text-sm text-slate-600">คุณล็อกอินสำเร็จแล้วครับ!</p>
+             <p className="text-xs text-slate-400 mt-4">(ระบบหน้าอื่น ๆ เช่น แชท และหาเพื่อน พร้อมทำงานแล้ว)</p>
           </div>
         )}
       </main>
