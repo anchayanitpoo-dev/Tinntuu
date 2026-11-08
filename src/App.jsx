@@ -48,7 +48,11 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
     link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></>,
     help: <><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
     alert: <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,
-    chevronLeft: <polyline points="15 18 9 12 15 6"></polyline>
+    chevronLeft: <polyline points="15 18 9 12 15 6"></polyline>,
+    mic: <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></>,
+    image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>,
+    stop: <rect x="6" y="6" width="12" height="12" rx="2"/>,
+    clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>
   };
   
   const isFilled = name === 'paw' || name === 'heart';
@@ -101,8 +105,14 @@ export default function App() {
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
+  
+  // Media Messaging Refs & States
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const chatImageInputRef = useRef(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
   const [catVibe, setCatVibe] = useState('friendly');
@@ -264,13 +274,76 @@ export default function App() {
     setDragDelta(0);
   };
 
+  // --- Send Message Helpers (Text, Image, Audio) ---
+  const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
+    if (!currentChatId) return;
+    const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
+    await addDoc(collection(db, collectionPath), {
+      text,
+      imageUrl,
+      audioUrl,
+      senderId: user.uid,
+      senderName: myProfile.name,
+      createdAt: serverTimestamp()
+    });
+    if (activeChatType === 'private') {
+      await setDoc(doc(db, 'matches', currentChatId), { lastSender: user.uid }, { merge: true });
+    }
+  };
+
   const sendMessage = async (e) => {
     e.preventDefault();
     if (!inputText.trim() || !currentChatId) return;
-    const text = inputText; setInputText('');
-    const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
-    await addDoc(collection(db, collectionPath), { text, senderId: user.uid, senderName: myProfile.name, createdAt: serverTimestamp() });
-    await setDoc(doc(db, 'matches', currentChatId), { lastSender: user.uid }, { merge: true });
+    const text = inputText; 
+    setInputText('');
+    await sendMediaMessage({ text });
+  };
+
+  const handleChatImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        await sendMediaMessage({ imageUrl: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          await sendMediaMessage({ audioUrl: reader.result });
+        };
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current.start();
+      setIsRecording(true);
+    } catch (err) {
+      alert('ไม่สามารถเข้าถึงไมโครโฟนได้');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
   };
 
   const handleCreateGroup = async (e) => {
@@ -282,7 +355,7 @@ export default function App() {
 
   const handleAddEvent = async (e) => {
     e.preventDefault();
-    if (!newEvent.title) return;
+    if (!newEvent.title || !newEvent.date || !newEvent.time) return;
     const updatedSchedule = [...(myProfile.schedule || []), { ...newEvent, id: Date.now() }];
     setMyProfile(prev => ({ ...prev, schedule: updatedSchedule }));
     await setDoc(doc(db, 'user_private', user.uid), { schedule: updatedSchedule }, { merge: true });
@@ -377,7 +450,7 @@ export default function App() {
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
             
-            {/* สตอรี่หน้าแรก (Matches Story Bar) */}
+            {/* สตอรี่แมตช์ใหม่ (Matches Story Bar) */}
             <div className="bg-white rounded-3xl p-3 flex gap-4 overflow-x-auto shadow-sm border border-slate-100 scrollbar-none">
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <div className="w-14 h-14 bg-red-50 rounded-full border-2 border-dashed border-red-300 flex items-center justify-center text-red-500 shadow-sm">
@@ -456,22 +529,69 @@ export default function App() {
           </div>
         )}
 
-        {/* --- SCHEDULE TAB --- */}
+        {/* --- SCHEDULE TAB (ใส่วันที่และเวลาได้) --- */}
         {activeTab === 'schedule' && (
-          <div className="p-4 bg-white rounded-3xl min-h-[60vh] shadow-sm border border-slate-100">
-             <h2 className="text-2xl font-bold text-slate-800 mb-4">ตารางเวลา</h2>
-             <form onSubmit={handleAddEvent} className="mb-6 flex gap-2">
-                <input type="text" placeholder="กิจกรรม..." value={newEvent.title} onChange={e => setNewEvent({...newEvent, title: e.target.value})} className="flex-1 border p-2 rounded-xl text-sm bg-slate-50" required/>
-                <button type="submit" className="bg-red-600 text-white px-4 rounded-xl text-sm font-semibold">เพิ่ม</button>
+          <div className="p-5 bg-white rounded-3xl min-h-[60vh] shadow-sm border border-slate-100">
+             <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+               <Icon name="calendar" className="text-red-500" /> ตารางกิจกรรม
+             </h2>
+
+             {/* ฟอร์มใส่วันที่ เวลา และ ชื่อกิจกรรม */}
+             <form onSubmit={handleAddEvent} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 mb-6">
+                <input 
+                  type="text" 
+                  placeholder="ชื่อกิจกรรม / ตารางเรียน..." 
+                  value={newEvent.title} 
+                  onChange={e => setNewEvent({...newEvent, title: e.target.value})} 
+                  className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
+                  required
+                />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-semibold text-slate-400 ml-1">วันที่</label>
+                    <input 
+                      type="date" 
+                      value={newEvent.date} 
+                      onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
+                      required
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] font-semibold text-slate-400 ml-1">เวลา</label>
+                    <input 
+                      type="time" 
+                      value={newEvent.time} 
+                      onChange={e => setNewEvent({...newEvent, time: e.target.value})} 
+                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
+                      required
+                    />
+                  </div>
+                </div>
+                <button type="submit" className="w-full bg-red-600 text-white text-sm font-semibold py-2.5 rounded-xl shadow-md shadow-red-500/20 hover:bg-red-700 transition-colors">
+                  เพิ่มกิจกรรม
+                </button>
              </form>
+
+             {/* รายการตารางกิจกรรม */}
              <div className="space-y-3">
                {myProfile.schedule?.map(ev => (
-                 <div key={ev.id} className="p-3 bg-slate-50 rounded-xl flex justify-between items-center border border-slate-100">
-                   <span className="text-sm font-medium text-slate-700">{ev.title}</span>
-                   <button onClick={() => handleDeleteEvent(ev.id)} className="text-slate-400 hover:text-red-500"><Icon name="trash" className="w-4 h-4"/></button>
+                 <div key={ev.id} className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm">
+                   <div>
+                     <h4 className="font-semibold text-slate-800 text-sm">{ev.title}</h4>
+                     <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
+                       {ev.date && <span className="flex items-center gap-1"><Icon name="calendar" className="w-3.5 h-3.5 text-red-500" /> {ev.date}</span>}
+                       {ev.time && <span className="flex items-center gap-1"><Icon name="clock" className="w-3.5 h-3.5 text-red-500" /> {ev.time}</span>}
+                     </div>
+                   </div>
+                   <button onClick={() => handleDeleteEvent(ev.id)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-100 shadow-sm transition-colors">
+                     <Icon name="trash" className="w-4 h-4"/>
+                   </button>
                  </div>
                ))}
-               {(!myProfile.schedule || myProfile.schedule.length === 0) && <p className="text-center text-slate-400 text-sm py-4">ยังไม่มีตารางกิจกรรม</p>}
+               {(!myProfile.schedule || myProfile.schedule.length === 0) && (
+                 <div className="text-center text-slate-400 text-sm py-8">ยังไม่มีตารางกิจกรรม</div>
+               )}
              </div>
           </div>
         )}
@@ -606,6 +726,7 @@ export default function App() {
                 </div>
               </div>
             ) : (
+              /* --- หน้าต่างห้องแชท (ส่งรูปภาพ + เสียงได้) --- */
               <div className="flex flex-col h-full bg-slate-50">
                 <div className="p-4 bg-white border-b flex items-center gap-3 shrink-0">
                   <button onClick={() => setCurrentChatId(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
@@ -616,6 +737,7 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* พื้นที่แสดงข้อความ รูปภาพ และเสียง */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.map(msg => {
                     const isMe = msg.senderId === user.uid;
@@ -623,7 +745,15 @@ export default function App() {
                       <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                         {!isMe && activeChatType !== 'private' && <span className="text-xs text-slate-500 mb-1 ml-1">{msg.senderName}</span>}
                         <div className={`p-3 max-w-[80%] rounded-2xl text-sm ${isMe ? 'bg-red-600 text-white rounded-br-sm' : 'bg-white border shadow-sm rounded-bl-sm text-slate-700'}`}>
-                          {msg.text}
+                          {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                          {msg.imageUrl && (
+                            <img src={msg.imageUrl} alt="รูปภาพแชท" className="rounded-xl max-h-60 object-cover my-1 shadow-sm cursor-pointer" onClick={() => window.open(msg.imageUrl, '_blank')} />
+                          )}
+                          {msg.audioUrl && (
+                            <div className="py-1">
+                              <audio controls src={msg.audioUrl} className="max-w-[220px] h-9 rounded-lg" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     )
@@ -631,15 +761,60 @@ export default function App() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <form onSubmit={sendMessage} className="p-3 bg-white border-t flex gap-2 shrink-0">
+                {/* ฟอร์มส่งข้อความ พร้อมปุ่มส่งรูปภาพ และปุ่มบันทึกเสียง */}
+                <form onSubmit={sendMessage} className="p-3 bg-white border-t flex items-center gap-2 shrink-0">
+                  {/* ปุ่มเลือกรูปภาพ */}
+                  <button 
+                    type="button" 
+                    onClick={() => chatImageInputRef.current?.click()} 
+                    className="p-2 text-slate-500 hover:text-red-500 hover:bg-slate-100 rounded-full transition-colors"
+                    title="ส่งรูปภาพ"
+                  >
+                    <Icon name="image" className="w-5 h-5" />
+                  </button>
+                  <input 
+                    type="file" 
+                    ref={chatImageInputRef} 
+                    onChange={handleChatImageUpload} 
+                    accept="image/*" 
+                    className="hidden" 
+                  />
+
+                  {/* ปุ่มบันทึกเสียง */}
+                  {isRecording ? (
+                    <button 
+                      type="button" 
+                      onClick={stopRecording} 
+                      className="p-2 bg-red-600 text-white animate-pulse rounded-full shadow-md flex items-center justify-center"
+                      title="หยุดอัดและส่งเสียง"
+                    >
+                      <Icon name="stop" className="w-5 h-5" />
+                    </button>
+                  ) : (
+                    <button 
+                      type="button" 
+                      onClick={startRecording} 
+                      className="p-2 text-slate-500 hover:text-red-500 hover:bg-slate-100 rounded-full transition-colors"
+                      title="อัดเสียง"
+                    >
+                      <Icon name="mic" className="w-5 h-5" />
+                    </button>
+                  )}
+
                   <input 
                     type="text" 
                     value={inputText} 
                     onChange={e => setInputText(e.target.value)} 
                     className="flex-1 bg-slate-100 px-4 py-2.5 rounded-full text-sm outline-none focus:ring-1 focus:ring-red-500" 
-                    placeholder="พิมพ์ข้อความ..." 
+                    placeholder={isRecording ? "กำลังอัดเสียง... (กดปุ่มสี่เหลี่ยมเพื่อส่ง)" : "พิมพ์ข้อความ..."}
+                    disabled={isRecording}
                   />
-                  <button type="submit" className="bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center shrink-0">
+                  
+                  <button 
+                    type="submit" 
+                    disabled={!inputText.trim() || isRecording} 
+                    className="bg-red-600 text-white w-10 h-10 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50 transition-opacity"
+                  >
                     <Icon name="send" className="w-4 h-4" />
                   </button>
                 </form>
@@ -761,9 +936,9 @@ export default function App() {
             </h2>
             <div className="space-y-4 text-sm text-slate-600 max-h-[60vh] overflow-y-auto">
               <p>🐾 <b>แท็บหาเพื่อน (Swipe):</b> ปัดขวาหรือกดหัวใจเพื่อ Match หากใจตรงกันจะได้แชทส่วนตัว ปัดซ้ายเพื่อข้าม</p>
-              <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน เพื่อช่วยจัดสรรเวลา</p>
+              <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน ระบุวันและเวลาเพื่อช่วยจัดสรรเวลา</p>
               <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หยอดเก่ง, กวนโอ๊ย)</p>
-              <p>💬 <b>แท็บแชท:</b> แบ่งเป็นแชทส่วนตัว (คนที่ Match) และสามารถสร้างห้องแชทกลุ่มชวนเพื่อนคุยได้ มีช่องค้นหารายชื่อเพื่อนด้วย</p>
+              <p>💬 <b>แท็บแชท:</b> ส่งรูปภาพและอัดเสียงคุยกันได้ แบ่งเป็นแชทส่วนตัว (คนที่ Match) และห้องกลุ่ม มีช่องค้นหารายชื่อเพื่อน</p>
               <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่คณะ วันเกิด/อายุ ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
             </div>
             <button onClick={() => setShowManual(false)} className="mt-6 w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200">
