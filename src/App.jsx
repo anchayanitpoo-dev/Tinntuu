@@ -471,6 +471,15 @@ export default function App() {
   const currentPartner = allProfiles.find(p => p.uid === currentPartnerUid);
   const currentGroup = groupRooms.find(g => g.id === currentChatId);
 
+  // --- คำนวณจำนวนข้อความที่ยังไม่ได้อ่านทั้งหมด ---
+  const totalUnreadPrivate = matches.reduce((acc, match) => acc + (match.unreadCounts?.[user?.uid] || 0), 0);
+  const totalUnreadGroup = groupRooms.reduce((acc, room) => {
+    const totalMsgs = room.messageCount || 0;
+    const readMsgs = myProfile?.readGroupCounts?.[room.id] || 0;
+    return acc + Math.max(0, totalMsgs - readMsgs);
+  }, 0);
+  const totalUnread = totalUnreadPrivate + totalUnreadGroup;
+
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
   if (!user) {
@@ -1008,13 +1017,14 @@ export default function App() {
 
       </main>
 
+      {/* --- ส่วน Navigation Bar ด้านล่างที่ปรับใหม่ --- */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
             { id: 'swipe', icon: 'paw' }, 
             { id: 'schedule', icon: 'calendar' }, 
             { id: 'practice', icon: 'bulb' }, 
-            { id: 'chat', icon: 'chat' }, 
+            { id: 'chat', icon: 'chat', badge: totalUnread }, // เพิ่มตัวแปรแจ้งเตือนให้ปุ่มแชท
             { id: 'profile', icon: 'user' } 
           ].map(tab => (
             <button 
@@ -1023,9 +1033,17 @@ export default function App() {
                 setActiveTab(tab.id);
                 if (tab.id === 'chat') setCurrentChatId(null); 
               }} 
-              className={`p-3 rounded-full transition-all duration-300 ${activeTab === tab.id ? 'bg-red-50 text-red-600 scale-110 shadow-sm' : 'text-slate-400'}`}
+              // เพิ่มคลาส relative ตรงนี้
+              className={`relative p-3 rounded-full transition-all duration-300 ${activeTab === tab.id ? 'bg-red-50 text-red-600 scale-110 shadow-sm' : 'text-slate-400'}`}
             >
               <Icon name={tab.icon} className="w-6 h-6" />
+              
+              {/* จุดแดงแจ้งเตือนจำนวนข้อความ */}
+              {tab.badge > 0 && (
+                <div className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold shadow-md border-2 border-white z-10">
+                  {tab.badge > 99 ? '99+' : tab.badge}
+                </div>
+              )}
             </button>
           ))}
         </nav>
