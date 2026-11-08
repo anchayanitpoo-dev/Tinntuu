@@ -66,6 +66,9 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
 
 const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
 
+// รูปภาพโลโก้น้องแมวหน้าเข้าสู่ระบบ (สามารถเปลี่ยนเป็น URL รูปของคุณได้)
+const APP_LOGO = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
+
 const DEFAULT_PROFILE = {
   name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
   img: CAT_MASCOT, tags: 'หาเพื่อน, ทาสแมว', 
@@ -597,19 +600,60 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
+  // --- LOGIN SCREEN (หน้าเข้าสู่ระบบพร้อมรูปโลโก้ และธีมสีแดง) ---
   if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 relative overflow-hidden">
+        {/* พื้นหลังตกแต่งธีมสีแดง */}
+        <div className="absolute top-10 left-10 w-72 h-72 bg-red-400/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-10 right-10 w-72 h-72 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
+
         <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl z-10 border border-white">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-800 tracking-tight">TINNTUU</h1>
+          <div className="text-center mb-8 flex flex-col items-center">
+            {/* โลโก้น้องแมวขยิบตาแบบกรอบมนธีมสีแดง */}
+            <div className="w-28 h-28 mb-4 rounded-3xl overflow-hidden shadow-xl shadow-red-500/20 border-4 border-white bg-gradient-to-tr from-red-600 to-red-400 p-1 hover:scale-105 transition-transform duration-300">
+              <img 
+                src={APP_LOGO} 
+                alt="TINNTUU Logo" 
+                className="w-full h-full object-cover rounded-2xl" 
+              />
+            </div>
+
+            <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-500 tracking-tight flex items-center justify-center gap-2">
+              TINNTUU <Icon name="cat" className="w-7 h-7 text-red-600" />
+            </h1>
+            <p className="text-xs font-medium text-slate-500 mt-1">แอปหาเพื่อนสำหรับชาวทาสแมว</p>
           </div>
+
           <form onSubmit={handleAuth} className="space-y-4">
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-50 border px-5 py-4 rounded-2xl text-sm" placeholder="อีเมลมหาวิทยาลัย" required />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-50 border px-5 py-4 rounded-2xl text-sm" placeholder="รหัสผ่าน" required />
-            <button type="submit" className="w-full bg-red-600 text-white font-semibold py-4 rounded-2xl">{isLoginMode ? 'เข้าสู่ระบบ' : 'สร้างบัญชีผู้ใช้'}</button>
+            <input 
+              type="email" 
+              value={email} 
+              onChange={e => setEmail(e.target.value)} 
+              className="w-full bg-slate-50 border border-slate-200 px-5 py-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all" 
+              placeholder="อีเมลมหาวิทยาลัย" 
+              required 
+            />
+            <input 
+              type="password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)} 
+              className="w-full bg-slate-50 border border-slate-200 px-5 py-4 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all" 
+              placeholder="รหัสผ่าน" 
+              required 
+            />
+            <button 
+              type="submit" 
+              className="w-full bg-red-600 text-white font-semibold py-4 rounded-2xl shadow-lg shadow-red-500/30 hover:bg-red-700 transition-colors"
+            >
+              {isLoginMode ? 'เข้าสู่ระบบ' : 'สร้างบัญชีผู้ใช้'}
+            </button>
           </form>
-          <button onClick={() => setIsLoginMode(!isLoginMode)} className="w-full text-center text-sm text-slate-500 mt-6 hover:text-red-600 font-medium">
+
+          <button 
+            onClick={() => setIsLoginMode(!isLoginMode)} 
+            className="w-full text-center text-sm text-slate-500 mt-6 hover:text-red-600 font-medium transition-colors"
+          >
             {isLoginMode ? 'ยังไม่มีบัญชี? สมัครใช้งาน' : 'มีบัญชีแล้ว? เข้าสู่ระบบ'}
           </button>
         </div>
