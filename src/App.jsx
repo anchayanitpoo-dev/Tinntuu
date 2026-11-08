@@ -4,7 +4,7 @@ import {
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
   enableIndexedDbPersistence, where, arrayUnion, deleteDoc,
-  increment // เพิ่ม increment เข้ามาเพื่อใช้นับจำนวนข้อความ
+  increment
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -150,8 +150,13 @@ export default function App() {
     });
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "modified" && change.doc.data().lastSender !== user.uid && change.doc.data().unreadCounts?.[user.uid] > 0) {
-            setToastMsg('มีข้อความใหม่จากเพื่อน!'); setTimeout(() => setToastMsg(null), 3500);
+          const data = change.doc.data();
+          if (change.type === "modified" && data.lastSender && data.lastSender !== user.uid) {
+            const unread = data.unreadCounts?.[user.uid] || 0;
+            if (unread > 0) {
+              setToastMsg('มีข้อความใหม่จากเพื่อน!');
+              setTimeout(() => setToastMsg(null), 3500);
+            }
           }
         });
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -171,7 +176,7 @@ export default function App() {
         ...prev, 
         swiped: data.swiped || [], 
         schedule: data.schedule || [],
-        readGroupCounts: data.readGroupCounts || {} // ดึงข้อมูลการอ่านแชทกลุ่ม
+        readGroupCounts: data.readGroupCounts || {}
       }));
     });
     return () => unsub();
@@ -186,7 +191,7 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // ระบบ Auto-Read: เมื่อเปิดห้องแชทค้างไว้ แล้วมีข้อความเข้ามา จะถูกนับว่าอ่านแล้วทันที
+  // ระบบ Auto-Read: เมื่อเปิดห้องแชททิ้งไว้ ข้อความเข้าใหม่จะถูกนับว่าอ่านแล้วทันที
   useEffect(() => {
     if (!user || !currentChatId) return;
 
@@ -203,7 +208,7 @@ export default function App() {
         setDoc(doc(db, 'user_private', user.uid), { [`readGroupCounts.${currentChatId}`]: totalMsgs }, { merge: true });
       }
     }
-  }, [messages, matches, groupRooms, currentChatId, activeChatType, user, myProfile.readGroupCounts]);
+  }, [messages, currentChatId, activeChatType, user]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
   useEffect(() => { practiceEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [practiceMessages, isAiTyping]);
@@ -286,7 +291,8 @@ export default function App() {
         const matchRef = await addDoc(collection(db, 'matches'), { 
           participants: [user.uid, targetUid], 
           matchedAt: serverTimestamp(),
-          unreadCounts: { [user.uid]: 0, [targetUid]: 0 }
+          unreadCounts: { [user.uid]: 0, [targetUid]: 0 },
+          lastSender: ''
         });
         setCurrentChatId(matchRef.id); setActiveChatType('private'); setActiveTab('chat');
       }
@@ -315,14 +321,18 @@ export default function App() {
       createdAt: serverTimestamp()
     });
     
-    // อัปเดตตัวนับข้อความ
+    // อัปเดตตัวนับข้อความ ป้องกัน Error กรณี matchDoc ยังโหลดไม่เสร็จ
     if (activeChatType === 'private') {
       const matchDoc = matches.find(m => m.id === currentChatId);
-      const otherUid = matchDoc.participants.find(uid => uid !== user.uid);
-      await setDoc(doc(db, 'matches', currentChatId), { 
-        lastSender: user.uid,
-        [`unreadCounts.${otherUid}`]: increment(1)
-      }, { merge: true });
+      const otherUid = matchDoc?.participants?.find(uid => uid !== user.uid);
+      if (otherUid) {
+        await setDoc(doc(db, 'matches', currentChatId), { 
+          lastSender: user.uid,
+          [`unreadCounts.${otherUid}`]: increment(1)
+        }, { merge: true });
+      } else {
+        await setDoc(doc(db, 'matches', currentChatId), { lastSender: user.uid }, { merge: true });
+      }
     } else if (activeChatType === 'group_chat') {
       await setDoc(doc(db, 'group_chats', currentChatId), {
         messageCount: increment(1)
@@ -392,7 +402,7 @@ export default function App() {
       name: newRoomName.trim(), 
       createdBy: user.uid, 
       createdAt: serverTimestamp(),
-      messageCount: 0 // ตั้งค่าเริ่มต้น
+      messageCount: 0
     });
     setNewRoomName('');
   };
@@ -445,16 +455,31 @@ export default function App() {
     }, 1000); 
   };
 
-  const openPrivateChat = (matchInfo, otherProfile) => {
+  const openPrivateChat = async (matchInfo, otherProfile) => {
     setCurrentChatId(matchInfo.id);
     setActiveChatType('private');
     setActiveTab('chat');
+    
+    // รีเซ็ตตัวเลขอ่านแล้วทันทีเมื่อคลิกเข้าห้อง
+    if (matchInfo.unreadCounts?.[user.uid] > 0) {
+      await setDoc(doc(db, 'matches', matchInfo.id), {
+        [`unreadCounts.${user.uid}`]: 0
+      }, { merge: true });
+    }
   };
 
-  const openGroupChat = (room) => {
+  const openGroupChat = async (room) => {
     setCurrentChatId(room.id);
     setActiveChatType('group_chat');
     setActiveTab('chat');
+
+    // รีเซ็ตตัวเลขอ่านแล้วสำหรับแชทกลุ่ม
+    const totalMsgs = room.messageCount || 0;
+    if ((myProfile.readGroupCounts?.[room.id] || 0) < totalMsgs) {
+      await setDoc(doc(db, 'user_private', user.uid), {
+        [`readGroupCounts.${room.id}`]: totalMsgs
+      }, { merge: true });
+    }
   };
 
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
@@ -472,12 +497,17 @@ export default function App() {
   const currentGroup = groupRooms.find(g => g.id === currentChatId);
 
   // --- คำนวณจำนวนข้อความที่ยังไม่ได้อ่านทั้งหมด ---
-  const totalUnreadPrivate = matches.reduce((acc, match) => acc + (match.unreadCounts?.[user?.uid] || 0), 0);
+  const totalUnreadPrivate = matches.reduce((acc, match) => {
+    const count = match.unreadCounts?.[user?.uid];
+    return acc + (typeof count === 'number' ? count : 0);
+  }, 0);
+
   const totalUnreadGroup = groupRooms.reduce((acc, room) => {
     const totalMsgs = room.messageCount || 0;
     const readMsgs = myProfile?.readGroupCounts?.[room.id] || 0;
     return acc + Math.max(0, totalMsgs - readMsgs);
   }, 0);
+
   const totalUnread = totalUnreadPrivate + totalUnreadGroup;
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
@@ -745,7 +775,6 @@ export default function App() {
                         const matchDoc = matches.find(m => m.participants.includes(otherUid));
                         if (!p || !matchDoc) return null;
                         
-                        // ดึงจำนวนข้อความที่ยังไม่ได้อ่าน
                         const unreadCount = matchDoc.unreadCounts?.[user.uid] || 0;
 
                         return (
@@ -753,14 +782,14 @@ export default function App() {
                             <img src={p.img || CAT_MASCOT} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
                             <div className="flex-1">
                               <h3 className="font-bold text-slate-800">{p.name}</h3>
-                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
-                                {unreadCount > 0 ? 'มีข้อความใหม่' : 'แตะเพื่อเข้าสู่ห้องแชท'}
+                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
+                                {unreadCount > 0 ? 'มีข้อความใหม่ยังไม่ได้อ่าน' : 'แตะเพื่อเข้าสู่ห้องแชท'}
                               </p>
                             </div>
                             
-                            {/* แจ้งเตือนข้อความที่ยังไม่ได้อ่าน */}
+                            {/* แสดงจำนวนข้อความที่ยังไม่ได้อ่าน */}
                             {unreadCount > 0 && (
-                              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm">
+                              <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm">
                                 {unreadCount > 99 ? '99+' : unreadCount}
                               </div>
                             )}
@@ -789,7 +818,6 @@ export default function App() {
                       </form>
 
                       {groupRooms.map(room => {
-                        // คำนวณข้อความกลุ่มที่ยังไม่ได้อ่าน
                         const totalMsgs = room.messageCount || 0;
                         const readMsgs = myProfile.readGroupCounts?.[room.id] || 0;
                         const unreadCount = Math.max(0, totalMsgs - readMsgs);
@@ -801,14 +829,13 @@ export default function App() {
                             </div>
                             <div className="flex-1 overflow-hidden">
                               <h3 className="font-bold text-slate-800 truncate">{room.name}</h3>
-                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
-                                {unreadCount > 0 ? 'มีข้อความใหม่' : 'แตะเพื่อเข้าร่วมการสนทนา'}
+                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
+                                {unreadCount > 0 ? 'มีข้อความใหม่ยังไม่ได้อ่าน' : 'แตะเพื่อเข้าร่วมการสนทนา'}
                               </p>
                             </div>
 
-                            {/* แจ้งเตือนข้อความกลุ่มที่ยังไม่ได้อ่าน */}
                             {unreadCount > 0 && (
-                              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm mr-2">
+                              <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm mr-2">
                                 {unreadCount > 99 ? '99+' : unreadCount}
                               </div>
                             )}
@@ -976,7 +1003,7 @@ export default function App() {
                   <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="คณะ..." />
                 </div>
                 <div className="flex-1">
-                  <label className="text-xs font-semibold text-slate-500 ml-1">หอพัก/สถานที่</label>
+                  <label className="text-xs font-semibold text-slate-500 ml-1">สถานที่</label>
                   <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="สถานที่..." />
                 </div>
               </div>
@@ -1017,14 +1044,14 @@ export default function App() {
 
       </main>
 
-      {/* --- ส่วน Navigation Bar ด้านล่างที่ปรับใหม่ --- */}
+      {/* Navigation Bar ด้านล่างพร้อม Badge แสดงจำนวนข้อความ */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
             { id: 'swipe', icon: 'paw' }, 
             { id: 'schedule', icon: 'calendar' }, 
             { id: 'practice', icon: 'bulb' }, 
-            { id: 'chat', icon: 'chat', badge: totalUnread }, // เพิ่มตัวแปรแจ้งเตือนให้ปุ่มแชท
+            { id: 'chat', icon: 'chat', badge: totalUnread }, 
             { id: 'profile', icon: 'user' } 
           ].map(tab => (
             <button 
@@ -1033,14 +1060,13 @@ export default function App() {
                 setActiveTab(tab.id);
                 if (tab.id === 'chat') setCurrentChatId(null); 
               }} 
-              // เพิ่มคลาส relative ตรงนี้
               className={`relative p-3 rounded-full transition-all duration-300 ${activeTab === tab.id ? 'bg-red-50 text-red-600 scale-110 shadow-sm' : 'text-slate-400'}`}
             >
               <Icon name={tab.icon} className="w-6 h-6" />
               
-              {/* จุดแดงแจ้งเตือนจำนวนข้อความ */}
+              {/* จุดตัวเลขสีแดงแสดงยอดรวมข้อความยังไม่ได้อ่าน */}
               {tab.badge > 0 && (
-                <div className="absolute top-1 right-1 w-5 h-5 bg-red-500 rounded-full text-[10px] text-white flex items-center justify-center font-bold shadow-md border-2 border-white z-10">
+                <div className="absolute top-0 right-0 w-5 h-5 bg-red-600 rounded-full text-[10px] text-white flex items-center justify-center font-bold shadow-md border-2 border-white z-10 animate-pulse">
                   {tab.badge > 99 ? '99+' : tab.badge}
                 </div>
               )}
