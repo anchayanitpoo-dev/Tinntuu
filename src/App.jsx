@@ -7,7 +7,7 @@ import {
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
-  onAuthStateChanged, signOut
+  onAuthStateChanged, signOut, deleteUser
 } from 'firebase/auth';
 
 // --- 1. Firebase Config ---
@@ -44,7 +44,8 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
     plus: <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
     x: <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
     heart: <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>,
-    trash: <><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></>
+    trash: <><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></>,
+    link: <><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></>
   };
   
   const isFilled = name === 'paw' || name === 'heart';
@@ -59,7 +60,22 @@ const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba
 
 const DEFAULT_PROFILE = {
   name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
-  img: CAT_MASCOT, tags: 'หาเพื่อน, ทาสแมว', swiped: [], schedule: []
+  img: CAT_MASCOT, tags: 'หาเพื่อน, ทาสแมว', 
+  dob: '', contact: '', // ฟิลด์ใหม่: วันเกิด และ ช่องทางติดต่อ
+  swiped: [], schedule: []
+};
+
+// ฟังก์ชันคำนวณอายุจากวันเกิด
+const calculateAge = (dobString) => {
+  if (!dobString) return '';
+  const today = new Date();
+  const birthDate = new Date(dobString);
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const m = today.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+    age--;
+  }
+  return age;
 };
 
 export default function App() {
@@ -80,8 +96,8 @@ export default function App() {
 
   // --- Chat State ---
   const [matches, setMatches] = useState([]);
-  const [activeChatType, setActiveChatType] = useState('list'); // 'list', 'private', 'group_chat'
-  const [chatViewTab, setChatViewTab] = useState('private'); // 'private' or 'group'
+  const [activeChatType, setActiveChatType] = useState('list'); 
+  const [chatViewTab, setChatViewTab] = useState('private'); 
   const [currentChatId, setCurrentChatId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -91,10 +107,8 @@ export default function App() {
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // --- Schedule State ---
+  // --- Schedule & Practice State ---
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
-
-  // --- Practice State (Real Chat) ---
   const [catVibe, setCatVibe] = useState('friendly');
   const [practiceInput, setPracticeInput] = useState('');
   const [practiceMessages, setPracticeMessages] = useState([
@@ -174,12 +188,45 @@ export default function App() {
     if (!user || !myProfile.name.trim()) return;
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid, name: myProfile.name.trim(), faculty: myProfile.faculty || '', location: myProfile.location || '',
-        bio: myProfile.bio || '', img: myProfile.img || '', tags: myProfile.tags || '', updatedAt: serverTimestamp()
+        uid: user.uid, 
+        name: myProfile.name.trim(), 
+        faculty: myProfile.faculty || '', 
+        location: myProfile.location || '',
+        bio: myProfile.bio || '', 
+        img: myProfile.img || '', 
+        tags: myProfile.tags || '', 
+        dob: myProfile.dob || '',         // บันทึกวันเกิด
+        contact: myProfile.contact || '', // บันทึกช่องทางติดต่อ
+        updatedAt: serverTimestamp()
       }, { merge: true });
       await setDoc(doc(db, 'user_private', user.uid), { swiped: myProfile.swiped || [], schedule: myProfile.schedule || [] }, { merge: true });
       setHasProfile(true); setActiveTab('swipe');
+      alert("บันทึกข้อมูลเรียบร้อยแล้ว!");
     } catch (err) { alert('บันทึกโปรไฟล์ไม่สำเร็จ'); }
+  };
+
+  // ฟังก์ชันลบแอคเค้าท์
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    const confirmDelete = window.confirm("คุณแน่ใจหรือไม่ว่าต้องการลบบัญชี? ข้อมูลทั้งหมดจะถูกลบอย่างถาวรและไม่สามารถกู้คืนได้");
+    if (!confirmDelete) return;
+
+    try {
+      // ลบข้อมูลใน Firestore ก่อน (ต้องตั้ง Rules ให้ User ลบ Doc ตัวเองได้)
+      await deleteDoc(doc(db, 'user_private', user.uid));
+      await deleteDoc(doc(db, 'users', user.uid));
+      
+      // ลบ User ใน Firebase Auth
+      await deleteUser(user);
+      alert('ลบบัญชีของคุณเรียบร้อยแล้ว ลาก่อนเมี๊ยว');
+    } catch (err) {
+      console.error(err);
+      if (err.code === 'auth/requires-recent-login') {
+        alert('กรุณา "ออกจากระบบ" แล้ว "เข้าสู่ระบบใหม่" อีกครั้งเพื่อยืนยันตัวตนก่อนทำการลบบัญชีครับ');
+      } else {
+        alert('เกิดข้อผิดพลาดในการลบบัญชี กรุณาลองใหม่');
+      }
+    }
   };
 
   const handleImageFileChange = (e) => {
@@ -361,7 +408,6 @@ export default function App() {
                 const match = matches.find(m => m.participants.includes(otherUid));
                 return (
                   <div key={otherUid} onClick={() => { setCurrentChatId(match.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1.5 min-w-[65px] cursor-pointer hover:scale-105 transition-transform">
-                    {/* Gradient Ring (Story Style) */}
                     <div className="w-14 h-14 rounded-full p-[2.5px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm">
                       <img src={profile.img} className="w-full h-full rounded-full object-cover border-2 border-white" />
                     </div>
@@ -391,7 +437,10 @@ export default function App() {
                   </div>
 
                   <div className="absolute bottom-0 left-0 w-full p-6 text-white pointer-events-none">
-                    <h2 className="text-3xl font-bold mb-1">{currentProfile.name}</h2>
+                    <h2 className="text-3xl font-bold mb-1">
+                      {currentProfile.name} 
+                      {currentProfile.dob && <span className="font-medium text-xl ml-2 text-white/90">{calculateAge(currentProfile.dob)}</span>}
+                    </h2>
                     <div className="flex items-center gap-2 text-sm text-white/80 mb-3">
                       <Icon name="hat" className="w-4 h-4" /> {currentProfile.faculty}
                     </div>
@@ -582,9 +631,55 @@ export default function App() {
               <h2 className="text-xl font-bold text-slate-800">{myProfile.name || 'ชื่อของคุณ'}</h2>
             </div>
             <form onSubmit={handleSaveProfile} className="space-y-4">
-              <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} placeholder="ชื่อแสดงผล" className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm" required />
-              <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-red-500/20">บันทึกข้อมูล</button>
-              <button type="button" onClick={() => signOut(auth)} className="w-full bg-slate-100 text-slate-700 font-semibold py-3.5 rounded-xl">ออกจากระบบ</button>
+              
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1">ชื่อแสดงผล</label>
+                <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" required />
+              </div>
+
+              {/* ฟิลด์ วันเกิด และ อายุ */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">วัน/เดือน/ปีเกิด</label>
+                  <input type="date" value={myProfile.dob} onChange={e => setMyProfile({...myProfile, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+                </div>
+                <div className="w-20">
+                  <label className="text-xs font-semibold text-slate-500 ml-1 text-center block">อายุ</label>
+                  <input type="text" value={calculateAge(myProfile.dob)} disabled className="w-full bg-slate-100 border border-slate-200 px-2 py-3 rounded-xl text-sm mt-1 text-center text-slate-500 font-semibold" />
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">คณะ</label>
+                  <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">หอพัก/สถานที่</label>
+                  <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+                </div>
+              </div>
+
+              {/* ฟิลด์ ช่องทางติดต่อเพิ่มเติม */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1 flex items-center gap-1"><Icon name="link" className="w-3 h-3" /> ช่องทางติดต่อเพิ่มเติม (IG, Line, ฯลฯ)</label>
+                <input type="text" value={myProfile.contact} onChange={e => setMyProfile({...myProfile, contact: e.target.value})} placeholder="เช่น IG: @tinntuu" className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1">Bio (แนะนำตัว)</label>
+                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+              </div>
+              
+              <div className="pt-4 space-y-3">
+                <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-red-500/20">บันทึกข้อมูล</button>
+                <button type="button" onClick={() => signOut(auth)} className="w-full bg-slate-100 text-slate-700 font-semibold py-3.5 rounded-xl">ออกจากระบบ</button>
+                
+                {/* ปุ่มลบบัญชี */}
+                <button type="button" onClick={handleDeleteAccount} className="w-full text-red-500 font-semibold py-3.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors">
+                  ลบบัญชีผู้ใช้ (Delete Account)
+                </button>
+              </div>
             </form>
           </div>
         )}
