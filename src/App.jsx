@@ -94,7 +94,7 @@ export default function App() {
   // --- Schedule State ---
   const [newEvent, setNewEvent] = useState({ title: '', date: '', time: '' });
 
-  // --- Practice State (Updated for Real Chat) ---
+  // --- Practice State (Real Chat) ---
   const [catVibe, setCatVibe] = useState('friendly');
   const [practiceInput, setPracticeInput] = useState('');
   const [practiceMessages, setPracticeMessages] = useState([
@@ -158,7 +158,6 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // Auto-scroll for both chat views
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
   useEffect(() => { practiceEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [practiceMessages, isAiTyping]);
 
@@ -244,18 +243,15 @@ export default function App() {
     await setDoc(doc(db, 'user_private', user.uid), { schedule: updatedSchedule }, { merge: true });
   };
 
-  // --- PRACTICE LOGIC (Advanced Chat Simulation) ---
   const handlePracticeSubmit = (e) => {
     e.preventDefault();
     const text = practiceInput.trim();
     if (!text) return;
     
-    // 1. Add user message
     setPracticeMessages(prev => [...prev, { id: Date.now(), sender: 'user', text }]);
     setPracticeInput('');
     setIsAiTyping(true);
 
-    // 2. Simulate AI thinking delay
     setTimeout(() => {
       let aiReply = "";
       const isGreeting = text.includes('สวัสดี') || text.includes('หวัดดี') || text.includes('ทัก');
@@ -281,7 +277,7 @@ export default function App() {
 
       setPracticeMessages(prev => [...prev, { id: Date.now() + 1, sender: 'ai', text: aiReply }]);
       setIsAiTyping(false);
-    }, 800 + Math.random() * 700); // Random delay 0.8s - 1.5s
+    }, 800 + Math.random() * 700); 
   };
 
 
@@ -301,7 +297,6 @@ export default function App() {
   );
 
   if (!user) {
-    // [Login Screen Render remains the same as previous response...]
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-red-400/20 rounded-full blur-3xl"></div>
@@ -345,14 +340,40 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto px-5 pt-6">
+      <main className="flex-1 overflow-y-auto px-5 pt-4">
         
         {/* --- SWIPE TAB --- */}
         {activeTab === 'swipe' && (
-           // [Swipe Tab Code remains exactly the same...]
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full gap-4">
+            
+            {/* Story-like Matches Bar */}
+            <div className="bg-white rounded-3xl p-3 flex gap-4 overflow-x-auto scrollbar-hide shadow-sm border border-slate-100">
+              <div className="flex flex-col items-center gap-1.5 min-w-[65px]">
+                <div className="w-14 h-14 bg-red-50 rounded-full border-2 border-dashed border-red-300 flex items-center justify-center text-red-400 shadow-sm">
+                  <Icon name="heart" className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500">แมตช์ใหม่</span>
+              </div>
+              
+              {uniqueMatches.map(otherUid => {
+                const profile = allProfiles.find(p => p.uid === otherUid);
+                if (!profile) return null;
+                const match = matches.find(m => m.participants.includes(otherUid));
+                return (
+                  <div key={otherUid} onClick={() => { setCurrentChatId(match.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1.5 min-w-[65px] cursor-pointer hover:scale-105 transition-transform">
+                    {/* Gradient Ring (Story Style) */}
+                    <div className="w-14 h-14 rounded-full p-[2.5px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm">
+                      <img src={profile.img} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-slate-700 truncate w-full text-center">{profile.name.split(' ')[0]}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Swipe Card */}
             {currentProfile ? (
-              <div className="relative w-full h-[65vh] rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-300/50 bg-white">
+              <div className="relative w-full h-[58vh] rounded-[2rem] overflow-hidden shadow-2xl shadow-slate-300/50 bg-white">
                 <div 
                   className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing touch-none z-20"
                   style={{
@@ -364,23 +385,35 @@ export default function App() {
                 >
                   <img src={currentProfile.img} className="w-full h-full object-cover pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
+
+                  <div className="absolute top-5 left-5 bg-white/20 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full font-medium flex items-center gap-1">
+                    <Icon name="location" className="w-3 h-3" /> {currentProfile.location}
+                  </div>
+
                   <div className="absolute bottom-0 left-0 w-full p-6 text-white pointer-events-none">
                     <h2 className="text-3xl font-bold mb-1">{currentProfile.name}</h2>
+                    <div className="flex items-center gap-2 text-sm text-white/80 mb-3">
+                      <Icon name="hat" className="w-4 h-4" /> {currentProfile.faculty}
+                    </div>
                     <p className="text-sm text-white/90 font-medium mb-4 line-clamp-2">{currentProfile.bio}</p>
+                    <div className="flex gap-2">
+                      <span className="bg-white/20 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full">{currentProfile.tags}</span>
+                    </div>
                   </div>
                 </div>
 
+                {/* Floating Buttons */}
                 <div className="absolute bottom-6 left-0 w-full flex justify-center gap-6 z-30 pointer-events-none">
-                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-slate-400 shadow-xl hover:scale-110 transition-transform pointer-events-auto">
-                    <Icon name="x" className="w-6 h-6" strokeWidth="2.5" />
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-slate-400 shadow-xl hover:scale-110 transition-transform pointer-events-auto">
+                    <Icon name="x" className="w-5 h-5" strokeWidth="2.5" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="w-16 h-16 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-500/30 hover:scale-110 transition-transform pointer-events-auto">
-                    <Icon name="heart" className="w-6 h-6" strokeWidth="2.5" />
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-500/30 hover:scale-110 transition-transform pointer-events-auto">
+                    <Icon name="heart" className="w-5 h-5" strokeWidth="2.5" />
                   </button>
                 </div>
               </div>
             ) : (
-              <div className="h-[65vh] flex flex-col items-center justify-center text-center text-slate-500 bg-white rounded-[2rem] shadow-sm">
+              <div className="h-[58vh] flex flex-col items-center justify-center text-center text-slate-500 bg-white rounded-[2rem] shadow-sm">
                 <Icon name="search" className="w-8 h-8 text-slate-300 mb-4" />
                 <h3 className="text-lg font-bold text-slate-800">ค้นหาเพื่อนใหม่หมดแล้ว</h3>
               </div>
@@ -390,7 +423,6 @@ export default function App() {
 
         {/* --- SCHEDULE TAB --- */}
         {activeTab === 'schedule' && (
-          // [Schedule Tab Code remains exactly the same...]
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[60vh]">
             <div className="p-5 border-b border-slate-100 bg-slate-50/50">
               <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
@@ -419,7 +451,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- PRACTICE TAB (Now an actual Chat Interface) --- */}
+        {/* --- PRACTICE TAB --- */}
         {activeTab === 'practice' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden h-[calc(100vh-180px)] flex flex-col relative">
             <div className="p-4 border-b border-slate-100 bg-slate-50/50 z-10">
@@ -454,7 +486,6 @@ export default function App() {
                 </div>
               ))}
               
-              {/* Typing indicator */}
               {isAiTyping && (
                 <div className="self-start flex items-center gap-2">
                    <img src={CAT_MASCOT} className="w-6 h-6 rounded-full object-cover shadow-sm" />
@@ -479,7 +510,6 @@ export default function App() {
 
         {/* --- CHAT TAB (Private & Group) --- */}
         {activeTab === 'chat' && (
-           // [Chat Tab Code remains exactly the same as previous response...]
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden h-[calc(100vh-180px)] flex flex-col">
             {activeChatType === 'list' ? (
               <div className="flex flex-col h-full">
@@ -542,7 +572,6 @@ export default function App() {
 
         {/* --- PROFILE TAB --- */}
         {activeTab === 'profile' && (
-           // [Profile Tab Code remains exactly the same as previous response...]
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
              <div className="text-center mb-8">
               <div className="relative w-28 h-28 mx-auto mb-4">
