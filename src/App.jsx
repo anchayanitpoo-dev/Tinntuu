@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
-  query, orderBy, limit, serverTimestamp, setDoc, doc, getDoc,
+  query, orderBy, limit, serverTimestamp, setDoc, updateDoc, doc,
   enableIndexedDbPersistence, where, arrayUnion, deleteDoc,
   increment
 } from 'firebase/firestore';
@@ -82,10 +82,9 @@ const calculateAge = (dobString) => {
   return age;
 };
 
-// ฟังก์ชันสำหรับยิง Browser Notification
-const triggerSystemNotification = (title, body) => {
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "granted") {
+// ยิง Pop-up แจ้งเตือนของ Browser เมื่อเปิดสลับไปแท็บอื่นอยู่
+const triggerBrowserNotification = (title, body) => {
+  if ("Notification" in window && Notification.permission === "granted") {
     new Notification(title, { body, icon: CAT_MASCOT });
   }
 };
@@ -139,7 +138,7 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
 
-  // ขอสิทธิ์ระบบแจ้งเตือนเมื่อเปิดเว็บครั้งแรก
+  // ขออนุญาตเบราว์เซอร์สำหรับ Browser Notification
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -164,6 +163,7 @@ export default function App() {
       else { setMyProfile(DEFAULT_PROFILE); setHasProfile(false); setActiveTab('profile'); }
     });
 
+    // ดักฟังข้อความใหม่แชทส่วนตัว
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           const data = change.doc.data();
@@ -171,7 +171,7 @@ export default function App() {
             const unread = data.unreadCounts?.[user.uid] || 0;
             if (unread > 0) {
               setToastMsg('มีข้อความใหม่จากเพื่อน!');
-              triggerSystemNotification('TINNTUU 🐾', 'คุณมีข้อความใหม่จากเพื่อนที่แมตช์!');
+              triggerBrowserNotification('TINNTUU 🐾', 'มีข้อความใหม่ทักหาคุณ!');
               setTimeout(() => setToastMsg(null), 3500);
             }
           }
@@ -179,12 +179,13 @@ export default function App() {
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
+    // ดักฟังข้อความใหม่แชทกลุ่ม
     const unsubGroups = onSnapshot(query(collection(db, 'group_chats')), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           const data = change.doc.data();
           if (change.type === "modified" && data.lastSender && data.lastSender !== user.uid) {
             setToastMsg(`ข้อความใหม่ในกลุ่ม ${data.name || ''}`);
-            triggerSystemNotification(`TINNTUU (${data.name})`, 'มีข้อความใหม่ในกลุ่ม!');
+            triggerBrowserNotification(`TINNTUU (${data.name})`, 'มีข้อความใหม่ในกลุ่ม!');
             setTimeout(() => setToastMsg(null), 3500);
           }
         });
@@ -218,21 +219,21 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // ระบบ Auto-Read: อ่านข้อความทันทีเมื่อค้างในหน้าแชทนั้น
+  // เคลียร์จำนวนอ่านแล้วอัตโนมัติเมื่อเปิดหน้าแชทค้างไว้
   useEffect(() => {
     if (!user || !currentChatId) return;
 
     if (activeChatType === 'private') {
       const matchDoc = matches.find(m => m.id === currentChatId);
       if (matchDoc && matchDoc.unreadCounts?.[user.uid] > 0) {
-        setDoc(doc(db, 'matches', currentChatId), { [`unreadCounts.${user.uid}`]: 0 }, { merge: true });
+        updateDoc(doc(db, 'matches', currentChatId), { [`unreadCounts.${user.uid}`]: 0 }).catch(() => {});
       }
     } else if (activeChatType === 'group_chat') {
       const groupDoc = groupRooms.find(g => g.id === currentChatId);
       const readMsgs = myProfile.readGroupCounts?.[currentChatId] || 0;
       const totalMsgs = groupDoc?.messageCount || 0;
       if (groupDoc && readMsgs < totalMsgs) {
-        setDoc(doc(db, 'user_private', user.uid), { [`readGroupCounts.${currentChatId}`]: totalMsgs }, { merge: true });
+        updateDoc(doc(db, 'user_private', user.uid), { [`readGroupCounts.${currentChatId}`]: totalMsgs }).catch(() => {});
       }
     }
   }, [messages, currentChatId, activeChatType, user, matches, groupRooms, myProfile.readGroupCounts]);
@@ -336,7 +337,7 @@ export default function App() {
     setDragDelta(0);
   };
 
-  // ฟังก์ชันส่งข้อความ - ดึงข้อมูลตรงจาก Firestore เพื่อความถูกต้อง 100%
+  // แก้ไขจุดสำคัญ: ใช้ updateDoc + Fallback ป้องกัน Error เรื่อง Dot Notation
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -351,26 +352,29 @@ export default function App() {
     });
     
     if (activeChatType === 'private') {
-      try {
-        const matchSnap = await getDoc(doc(db, 'matches', currentChatId));
-        if (matchSnap.exists()) {
-          const participants = matchSnap.data().participants || [];
-          const otherUid = participants.find(uid => uid !== user.uid);
-          if (otherUid) {
-            await setDoc(doc(db, 'matches', currentChatId), { 
-              lastSender: user.uid,
-              [`unreadCounts.${otherUid}`]: increment(1)
-            }, { merge: true });
-          }
-        }
-      } catch (err) {
-        console.error("Error updating unread count:", err);
+      const matchDoc = matches.find(m => m.id === currentChatId);
+      const otherUid = matchDoc?.participants?.find(uid => uid !== user.uid);
+      if (otherUid) {
+        await updateDoc(doc(db, 'matches', currentChatId), { 
+          lastSender: user.uid,
+          [`unreadCounts.${otherUid}`]: increment(1)
+        }).catch(async () => {
+          await setDoc(doc(db, 'matches', currentChatId), { 
+            lastSender: user.uid,
+            unreadCounts: { [otherUid]: 1, [user.uid]: 0 }
+          }, { merge: true });
+        });
       }
     } else if (activeChatType === 'group_chat') {
-      await setDoc(doc(db, 'group_chats', currentChatId), {
+      await updateDoc(doc(db, 'group_chats', currentChatId), {
         lastSender: user.uid,
         messageCount: increment(1)
-      }, { merge: true });
+      }).catch(async () => {
+        await setDoc(doc(db, 'group_chats', currentChatId), {
+          lastSender: user.uid,
+          messageCount: 1
+        }, { merge: true });
+      });
     }
   };
 
@@ -496,9 +500,9 @@ export default function App() {
     setActiveTab('chat');
     
     if (matchInfo.unreadCounts?.[user.uid] > 0) {
-      await setDoc(doc(db, 'matches', matchInfo.id), {
+      await updateDoc(doc(db, 'matches', matchInfo.id), {
         [`unreadCounts.${user.uid}`]: 0
-      }, { merge: true });
+      }).catch(() => {});
     }
   };
 
@@ -509,9 +513,9 @@ export default function App() {
 
     const totalMsgs = room.messageCount || 0;
     if ((myProfile.readGroupCounts?.[room.id] || 0) < totalMsgs) {
-      await setDoc(doc(db, 'user_private', user.uid), {
+      await updateDoc(doc(db, 'user_private', user.uid), {
         [`readGroupCounts.${room.id}`]: totalMsgs
-      }, { merge: true });
+      }).catch(() => {});
     }
   };
 
@@ -529,7 +533,7 @@ export default function App() {
   const currentPartner = allProfiles.find(p => p.uid === currentPartnerUid);
   const currentGroup = groupRooms.find(g => g.id === currentChatId);
 
-  // --- คำนวณจำนวนข้อความที่ยังไม่ได้อ่านทั้งหมด ---
+  // คำนวณผลรวมข้อความที่ยังไม่ได้อ่าน
   const totalUnreadPrivate = matches.reduce((acc, match) => {
     const count = match.unreadCounts?.[user?.uid];
     return acc + (typeof count === 'number' ? count : 0);
@@ -568,7 +572,7 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans pb-28 relative text-slate-800 overflow-x-hidden">
       
-      {/* Toast Notification บนหน้าจอ */}
+      {/* Toast Notification เด้งเตือนด้านบน */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg text-sm flex items-center gap-2 animate-bounce">
           <Icon name="chat" className="w-4 h-4 text-red-400" /> {toastMsg}
@@ -585,7 +589,6 @@ export default function App() {
         {/* --- SWIPE TAB --- */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
-            
             <div className="bg-white rounded-3xl p-3 flex gap-4 overflow-x-auto shadow-sm border border-slate-100 scrollbar-none">
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <div className="w-14 h-14 bg-red-50 rounded-full border-2 border-dashed border-red-300 flex items-center justify-center text-red-500 shadow-sm">
@@ -1077,7 +1080,7 @@ export default function App() {
 
       </main>
 
-      {/* Navigation Bar ด้านล่างพร้อม Badge */}
+      {/* Navigation Bar ด้านล่างพร้อมจุดตัวเลขสีแดง */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
