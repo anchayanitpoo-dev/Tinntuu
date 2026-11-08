@@ -27,7 +27,78 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
-// --- 2. Icon System ---
+// --- 2. SVG Vector Cat Graphic System ---
+// เวกเตอร์รูปน้องแมวขยิบตาพร้อมกรอบไล่สีแดงส้ม (ใช้แทนรูปภาพทั้งหมด)
+const CatVectorLogo = ({ className = "w-full h-full" }) => (
+  <svg viewBox="0 0 200 200" className={className} xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="catBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#ff7e5f" />
+        <stop offset="40%" stopColor="#feb47b" />
+        <stop offset="85%" stopColor="#e63946" />
+        <stop offset="100%" stopColor="#b71c1c" />
+      </linearGradient>
+      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.15" />
+      </filter>
+    </defs>
+    
+    {/* พื้นหลังกรอบมนสีแดงสดใส */}
+    <rect width="200" height="200" rx="48" fill="url(#catBgGrad)" />
+    
+    {/* หูซ้าย */}
+    <path d="M 42 82 Q 72 25 88 84" fill="#ffffff" />
+    <path d="M 49 79 Q 72 38 82 82" fill="#ffb4a2" />
+    
+    {/* หูขวา */}
+    <path d="M 158 82 Q 128 25 112 84" fill="#ffffff" />
+    <path d="M 151 79 Q 128 38 118 82" fill="#ffb4a2" />
+    
+    {/* หัวแมว */}
+    <ellipse cx="100" cy="116" rx="58" ry="46" fill="#ffffff" filter="url(#shadow)" />
+    
+    {/* ตาซ้าย (ยิ้มขยิบตา) */}
+    <path d="M 68 108 Q 78 98 88 108" fill="none" stroke="#2d3748" strokeWidth="5.5" strokeLinecap="round" />
+    
+    {/* ตาขวา (ตากลมโตสดใส) */}
+    <ellipse cx="122" cy="105" rx="7.5" ry="9.5" fill="#2d3748" />
+    <circle cx="120" cy="102" r="2.5" fill="#ffffff" />
+    
+    {/* จมูกและปาก */}
+    <path d="M 97 114 Q 100 111 103 114 Q 100 119 97 114 Z" fill="#e63946" />
+    <path d="M 92 120 Q 100 128 100 120 Q 100 128 108 120" fill="none" stroke="#2d3748" strokeWidth="3" strokeLinecap="round" />
+    
+    {/* แก้มชมพู */}
+    <ellipse cx="68" cy="118" rx="8" ry="5" fill="#ff8787" opacity="0.6" />
+    <ellipse cx="132" cy="118" rx="8" ry="5" fill="#ff8787" opacity="0.6" />
+    
+    {/* หนวดแมว */}
+    <path d="M 40 108 L 60 112 M 38 118 L 59 118 M 160 108 L 140 112 M 162 118 L 141 118" stroke="#2d3748" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
+    
+    {/* บับเบิ้ลคำพูดน่ารักๆ */}
+    <g transform="translate(68, 134)">
+      <rect width="64" height="34" rx="17" fill="#ffffff" filter="url(#shadow)" />
+      <circle cx="84" cy="151" r="5" fill="#ffffff" />
+      <circle cx="21" cy="17" r="4" fill="#ff7e5f" />
+      <circle cx="32" cy="17" r="4" fill="#e63946" />
+      <circle cx="43" cy="17" r="4" fill="#9b5de5" />
+    </g>
+  </svg>
+);
+
+// คอมโพเนนต์แสดงผลรูปโปรไฟล์ (ถ้าไม่มีรูป URL อัปโหลด จะใช้รูปแมวเวกเตอร์)
+const UserAvatar = ({ src, className = "w-12 h-12", alt = "User Avatar" }) => {
+  if (src && (src.startsWith('http') || src.startsWith('data:image'))) {
+    return <img src={src} alt={alt} className={`${className} object-cover`} />;
+  }
+  return (
+    <div className={`${className} flex items-center justify-center overflow-hidden bg-slate-100`}>
+      <CatVectorLogo className="w-full h-full" />
+    </div>
+  );
+};
+
+// --- Icon System ---
 const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
   const icons = {
     paw: <path d="M12 11.5c-1.5 0-3 1.5-3 3 0 2.5 2 4.5 3 4.5s3-2 3-4.5c0-1.5-1.5-3-3-3zm-5-3c-1.5 0-2.5-1-2.5-2.5S5.5 3.5 7 3.5 9.5 4.5 9.5 6 8.5 8.5 7 8.5zm10 0c-1.5 0-2.5-1-2.5-2.5S15.5 3.5 17 3.5s2.5 1 2.5 2.5-1 2.5-2.5 2.5zM12 7.5c-1.2 0-2-1-2-2.5S10.8 2.5 12 2.5s2 1 2 2.5-.8 2.5-2 2.5z"/>,
@@ -64,12 +135,9 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
   );
 };
 
-// เปลี่ยนพาธโลโก้แอป / รูปแมวตั้งต้นทั้งหมดเป็นรูปโลโก้สีแดง (ใส่ไฟล์รูปไว้ที่ public/logo.png)
-const APP_LOGO = "/logo.png";
-
 const DEFAULT_PROFILE = {
   name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
-  img: APP_LOGO, tags: 'หาเพื่อน, ทาสแมว', 
+  img: '', tags: 'หาเพื่อน, ทาสแมว', 
   dob: '', contact: '', swiped: [], schedule: [], readGroupCounts: {}
 };
 
@@ -83,14 +151,13 @@ const calculateAge = (dobString) => {
   return age;
 };
 
-// ยิง Pop-up แจ้งเตือนของ Browser เมื่อเปิดสลับไปแท็บอื่นอยู่
 const triggerBrowserNotification = (title, body) => {
   if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(title, { body, icon: APP_LOGO });
+    new Notification(title, { body });
   }
 };
 
-// --- 3. ระบบตอบกลับ AI อัจฉริยะ (วิเคราะห์บริบทคำ + นิสัยแมว) ---
+// --- 3. ระบบตอบกลับ AI อัจฉริยะ ---
 const generateCatReply = (text, vibe) => {
   const lower = text.toLowerCase();
   
@@ -105,7 +172,7 @@ const generateCatReply = (text, vibe) => {
       greeting: ["สวัสดีเมี๊ยว! ยินดีที่ได้คุยกันน้า วันนี้เป็นไงบ้าง?", "ทักทายยามเมี๊ยว~ มีอะไรอยากเล่าให้ฟังมั้ย?", "สวัสดีฮะ! พร้อมคุยเสมอเลยน้า 🐾"],
       question: ["เป็นคำถามที่ดีนะเมี๊ยว! เราคิดว่าค่อยๆ คิด ค่อยๆ ทำดีที่สุดเลย", "อืมม เรื่องนี้เราว่าลองทำตามที่หัวใจเรียกร้องดูมั้ยเมี๊ยว?", "ถามแบบนี้แสดงว่ากำลังสนใจเรื่องนี้อยู่แน่ๆ เลยใช่เปล่า?"],
       sad: ["โอ๋ๆ ไม่ร้องน้าเมี๊ยว สู้ๆ! เราเป็นกำลังใจให้เสมอเลยนะ 💖", "เหนื่อยก็พักก่อนได้นะเมี๊ยว ตบไหล่เบาๆ น้า", "มากอดๆ นะเมี๊ยว วันนี้เก่งมากแล้วรู้มั้ย!"],
-      flirting: ["เขินเลยเมี๊ยว~ พูดแบบนี้บ่อยรึเปล่าเนี่ย 🥰", "งุย ยิ้มแก้มแตกแล้วนะเมี๊ยว!", "ขอบคุณน้า คุณก็น่ารักเหมือนกันแหละเมี๊ยว"],
+      flirting: ["เขินเลยเมี๊ยว~ พูดแบบนี้บ่อยรึเปล่าเนี่ย 🥰", "งุย ยิ้มแก้มแตกแล้วนะเมี๊ยว!", "ขอบคุณน้า คุณก็น่ารักเหมือนกันเมี๊ยว"],
       food: ["พูดเรื่องกินแล้วหิวตามเลยเมี๊ยว! ไปหาไรอร่อยๆ กินกัน!", "อย่าลืมกินข้าวให้ตรงเวลานะเมี๊ยว สุขภาพสำคัญที่สุด!"],
       default: ["ฟังดูน่าสนใจจังเมี๊ยว! แล้วเป็นยังไงต่อเหรอ?", "จริงเหรอเมี๊ยว! เล่าให้ฟังเพิ่มอีกหน่อยสิ", "อ๋อ เข้าใจแล้วเมี๊ยว! มีอะไรอยากแชร์อีกมั้ย?"]
     },
@@ -188,7 +255,6 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
 
-  // ขออนุญาตเบราว์เซอร์สำหรับ Browser Notification
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
@@ -269,7 +335,6 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // เคลียร์จำนวนอ่านแล้วอัตโนมัติเมื่อเปิดหน้าแชทค้างไว้
   useEffect(() => {
     if (!user || !currentChatId) return;
 
@@ -387,7 +452,6 @@ export default function App() {
     setDragDelta(0);
   };
 
-  // ส่งข้อความมีเดีย / ข้อความทั่วไป
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -581,7 +645,6 @@ export default function App() {
   const currentPartner = allProfiles.find(p => p.uid === currentPartnerUid);
   const currentGroup = groupRooms.find(g => g.id === currentChatId);
 
-  // คำนวณผลรวมข้อความที่ยังไม่ได้อ่าน
   const totalUnreadPrivate = matches.reduce((acc, match) => {
     const count = match.unreadCounts?.[user?.uid];
     return acc + (typeof count === 'number' ? count : 0);
@@ -597,7 +660,7 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
-  // --- LOGIN SCREEN (หน้าเข้าสู่ระบบพร้อมรูปโลโก้แมวสีแดง) ---
+  // --- LOGIN SCREEN (ใช้องค์ประกอบเวกเตอร์รูปแมว SVG สีแดงฉูดฉาด) ---
   if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 relative overflow-hidden">
@@ -606,12 +669,9 @@ export default function App() {
 
         <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl z-10 border border-white">
           <div className="text-center mb-8 flex flex-col items-center">
-            <div className="w-28 h-28 mb-4 rounded-3xl overflow-hidden shadow-xl shadow-red-500/20 border-4 border-white bg-gradient-to-tr from-red-600 to-red-400 p-1 hover:scale-105 transition-transform duration-300">
-              <img 
-                src={APP_LOGO} 
-                alt="TINNTUU Logo" 
-                className="w-full h-full object-cover rounded-2xl" 
-              />
+            {/* โลโก้เวกเตอร์รูปแมวสีแดงสุดน่ารัก */}
+            <div className="w-28 h-28 mb-4 shadow-xl shadow-red-500/20 border-4 border-white rounded-3xl overflow-hidden hover:scale-105 transition-transform duration-300">
+              <CatVectorLogo />
             </div>
 
             <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-500 tracking-tight flex items-center justify-center gap-2">
@@ -694,8 +754,8 @@ export default function App() {
                     onClick={() => openPrivateChat(matchDoc, profile)} 
                     className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform"
                   >
-                    <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm">
-                      <img src={profile.img || APP_LOGO} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                    <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm overflow-hidden">
+                      <UserAvatar src={profile.img} className="w-full h-full rounded-full" />
                     </div>
                     <span className="text-[10px] font-semibold text-slate-700 truncate w-full text-center max-w-[60px]">{profile.name.split(' ')[0]}</span>
                   </div>
@@ -711,7 +771,7 @@ export default function App() {
                   onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
                   onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
                 >
-                  <img src={currentProfile.img || APP_LOGO} className="w-full h-full object-cover pointer-events-none" />
+                  <UserAvatar src={currentProfile.img} className="w-full h-full object-cover pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
                   
                   {currentProfile.location && (
@@ -903,7 +963,7 @@ export default function App() {
 
                         return (
                           <div key={otherUid} onClick={() => openPrivateChat(matchDoc, p)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
-                            <img src={p.img || APP_LOGO} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
+                            <UserAvatar src={p.img} className="w-14 h-14 rounded-full shadow-sm border border-slate-200" />
                             <div className="flex-1">
                               <h3 className="font-bold text-slate-800">{p.name}</h3>
                               <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
@@ -989,7 +1049,7 @@ export default function App() {
                   <div className="font-bold text-slate-800 flex items-center gap-3">
                     {activeChatType === 'private' ? (
                       <>
-                        <img src={currentPartner?.img || APP_LOGO} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
+                        <UserAvatar src={currentPartner?.img} className="w-9 h-9 rounded-full border border-slate-200" />
                         <div>
                           <h3 className="text-sm font-bold text-slate-800 leading-tight">{currentPartner?.name || 'แชทส่วนตัว'}</h3>
                           {currentPartner?.faculty && <span className="text-[10px] font-normal text-slate-400">คณะ{currentPartner.faculty}</span>}
@@ -1096,7 +1156,7 @@ export default function App() {
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
              <div className="text-center mb-6">
               <div className="relative w-28 h-28 mx-auto mb-4">
-                <img src={myProfile.img || APP_LOGO} className="w-full h-full rounded-full object-cover shadow-lg border border-slate-200" />
+                <UserAvatar src={myProfile.img} className="w-full h-full rounded-full shadow-lg border border-slate-200" />
                 <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-red-600 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-lg"><Icon name="camera" className="w-4 h-4" /></button>
                 <input type="file" ref={fileInputRef} onChange={handleImageFileChange} className="hidden" />
               </div>
