@@ -274,7 +274,6 @@ export default function App() {
     setDragDelta(0);
   };
 
-  // --- Send Message Helpers (Text, Image, Audio) ---
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -407,6 +406,12 @@ export default function App() {
     return p && p.name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim());
   });
 
+  // ค้นหาข้อมูลห้องแชทปัจจุบัน เพื่อนำมาแสดงชื่อใน Header
+  const currentMatchDoc = matches.find(m => m.id === currentChatId);
+  const currentPartnerUid = currentMatchDoc?.participants.find(uid => uid !== user?.uid);
+  const currentPartner = allProfiles.find(p => p.uid === currentPartnerUid);
+  const currentGroup = groupRooms.find(g => g.id === currentChatId);
+
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
   if (!user) {
@@ -529,14 +534,13 @@ export default function App() {
           </div>
         )}
 
-        {/* --- SCHEDULE TAB (ใส่วันที่และเวลาได้) --- */}
+        {/* --- SCHEDULE TAB --- */}
         {activeTab === 'schedule' && (
           <div className="p-5 bg-white rounded-3xl min-h-[60vh] shadow-sm border border-slate-100">
              <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
                <Icon name="calendar" className="text-red-500" /> ตารางกิจกรรม
              </h2>
 
-             {/* ฟอร์มใส่วันที่ เวลา และ ชื่อกิจกรรม */}
              <form onSubmit={handleAddEvent} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 mb-6">
                 <input 
                   type="text" 
@@ -573,7 +577,6 @@ export default function App() {
                 </button>
              </form>
 
-             {/* รายการตารางกิจกรรม */}
              <div className="space-y-3">
                {myProfile.schedule?.map(ev => (
                  <div key={ev.id} className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm">
@@ -726,14 +729,34 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* --- หน้าต่างห้องแชท (ส่งรูปภาพ + เสียงได้) --- */
+              /* --- หน้าต่างห้องแชท (แสดงชื่อกลุ่ม/ชื่อคู่สนทนาที่ Header) --- */
               <div className="flex flex-col h-full bg-slate-50">
                 <div className="p-4 bg-white border-b flex items-center gap-3 shrink-0">
                   <button onClick={() => setCurrentChatId(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
                     <Icon name="chevronLeft" className="w-6 h-6" />
                   </button>
-                  <div className="font-bold text-slate-800">
-                    {activeChatType === 'private' ? 'แชทส่วนตัว' : 'แชทกลุ่ม'}
+
+                  {/* ส่วนแสดงชื่อกลุ่ม หรือ ชื่อเพื่อน ใน Header */}
+                  <div className="font-bold text-slate-800 flex items-center gap-3">
+                    {activeChatType === 'private' ? (
+                      <>
+                        <img src={currentPartner?.img || CAT_MASCOT} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800 leading-tight">{currentPartner?.name || 'แชทส่วนตัว'}</h3>
+                          {currentPartner?.faculty && <span className="text-[10px] font-normal text-slate-400">คณะ{currentPartner.faculty}</span>}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-9 h-9 rounded-full bg-red-100 flex items-center justify-center text-red-600 border border-red-200">
+                          <Icon name="users" className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-800 leading-tight">{currentGroup?.name || 'แชทกลุ่ม'}</h3>
+                          <span className="text-[10px] font-normal text-slate-400">ห้องแชทกลุ่ม</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -761,9 +784,8 @@ export default function App() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* ฟอร์มส่งข้อความ พร้อมปุ่มส่งรูปภาพ และปุ่มบันทึกเสียง */}
+                {/* ฟอร์มส่งข้อความ */}
                 <form onSubmit={sendMessage} className="p-3 bg-white border-t flex items-center gap-2 shrink-0">
-                  {/* ปุ่มเลือกรูปภาพ */}
                   <button 
                     type="button" 
                     onClick={() => chatImageInputRef.current?.click()} 
@@ -780,7 +802,6 @@ export default function App() {
                     className="hidden" 
                   />
 
-                  {/* ปุ่มบันทึกเสียง */}
                   {isRecording ? (
                     <button 
                       type="button" 
@@ -937,7 +958,7 @@ export default function App() {
             <div className="space-y-4 text-sm text-slate-600 max-h-[60vh] overflow-y-auto">
               <p>🐾 <b>แท็บหาเพื่อน (Swipe):</b> ปัดขวาหรือกดหัวใจเพื่อ Match หากใจตรงกันจะได้แชทส่วนตัว ปัดซ้ายเพื่อข้าม</p>
               <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน ระบุวันและเวลาเพื่อช่วยจัดสรรเวลา</p>
-              <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หยอดเก่ง, กวนโอ๊ย)</p>
+              <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หหยอดเก่ง, กวนโอ๊ย)</p>
               <p>💬 <b>แท็บแชท:</b> ส่งรูปภาพและอัดเสียงคุยกันได้ แบ่งเป็นแชทส่วนตัว (คนที่ Match) และห้องกลุ่ม มีช่องค้นหารายชื่อเพื่อน</p>
               <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่คณะ วันเกิด/อายุ ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
             </div>
