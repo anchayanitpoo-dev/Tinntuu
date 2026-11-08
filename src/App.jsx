@@ -26,10 +26,9 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
-// --- 2. Icon System (แทนที่ Emoji ทั้งหมด) ---
+// --- 2. Icon System ---
 const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2.5" }) => {
   const icons = {
-    // รอยเท้าแมว (Cat Paw) แบบวาดเฉพาะ
     paw: <path d="M12 11.5c-1.5 0-3 1.5-3 3 0 2.5 2 4.5 3 4.5s3-2 3-4.5c0-1.5-1.5-3-3-3zm-5-3c-1.5 0-2.5-1-2.5-2.5S5.5 3.5 7 3.5 9.5 4.5 9.5 6 8.5 8.5 7 8.5zm10 0c-1.5 0-2.5-1-2.5-2.5S15.5 3.5 17 3.5s2.5 1 2.5 2.5-1 2.5-2.5 2.5zM12 7.5c-1.2 0-2-1-2-2.5S10.8 2.5 12 2.5s2 1 2 2.5-.8 2.5-2 2.5z"/>,
     cat: <><path d="M21 16.52A5 5 0 0 1 18.5 20h-13a5 5 0 0 1-2.5-3.48L2 12V4l4.5 4.5h11L22 4v8l-1 4.52z"/><path d="M9 14h.01M15 14h.01M12 17h.01"/></>,
     chat: <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>,
@@ -72,6 +71,42 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2.5" }) => {
     </svg>
   );
 };
+
+// --- App Logo Component ---
+const AppLogo = ({ className = "w-24 h-24" }) => (
+  <svg className={className} viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="tinntuuGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#E63946" />
+        <stop offset="50%" stopColor="#FF4500" />
+        <stop offset="100%" stopColor="#FF7043" />
+      </linearGradient>
+    </defs>
+    
+    <rect x="0" y="0" width="120" height="120" rx="28" fill="url(#tinntuuGrad)" />
+    
+    <path d="M 32 35 L 45 55 L 28 60 Z" fill="#FFF" />
+    <path d="M 88 35 L 75 55 L 92 60 Z" fill="#FFF" />
+    
+    <path d="M 25 65 L 12 62 M 25 70 L 12 72" stroke="#FFF" strokeWidth="3" strokeLinecap="round" /> 
+    <path d="M 95 65 L 108 62 M 95 70 L 108 72" stroke="#FFF" strokeWidth="3" strokeLinecap="round" />
+    
+    <rect x="25" y="45" width="70" height="50" rx="25" fill="#FFF" />
+    
+    <circle cx="45" cy="63" r="5" fill="#333" />
+    <circle cx="75" cy="63" r="5" fill="#333" />
+    <path d="M 55 70 Q 60 76 65 70" stroke="#333" strokeWidth="3" strokeLinecap="round" fill="none" />
+    
+    <path d="M 15 82 Q 15 72 30 72 L 90 72 Q 105 72 105 82 L 105 100 Q 105 110 90 110 L 45 110 L 25 118 L 25 105 Q 15 102 15 82 Z" fill="#FFF" />
+    
+    <circle cx="45" cy="91" r="6" fill="#E63946" />
+    <circle cx="60" cy="91" r="6" fill="#FF4500" />
+    <circle cx="75" cy="91" r="6" fill="#FF7043" />
+    
+    <circle cx="35" cy="72" r="8" fill="#FFF" stroke="#FF4500" strokeWidth="1" opacity="0.95" />
+    <circle cx="85" cy="72" r="8" fill="#FFF" stroke="#FF4500" strokeWidth="1" opacity="0.95" />
+  </svg>
+);
 
 const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
 
@@ -424,9 +459,9 @@ export default function App() {
   };
 
   if (authLoading) return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-3">
-      <div className="animate-bounce text-white">
-        <Icon name="cat" className="w-16 h-16" strokeWidth="2" />
+    <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-4">
+      <div className="animate-bounce">
+        <AppLogo className="w-24 h-24 border-2 border-white rounded-[30px] shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]" />
       </div>
       <div className="text-xl font-black flex items-center gap-2">
         กำลังโหลดความกวน... <Icon name="paw" className="w-6 h-6" />
@@ -441,10 +476,8 @@ export default function App() {
         <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
         <div className="bg-white/95 backdrop-blur-md w-full rounded-[3rem] p-8 shadow-2xl border-4 border-black relative z-10">
           <div className="text-center mb-6">
-            <div className="w-24 h-24 mx-auto mb-2 relative">
-              <div className="w-full h-full rounded-full bg-amber-100 border-2 border-black flex items-center justify-center overflow-hidden text-[#FF4500]">
-                <Icon name="cat" className="w-12 h-12" strokeWidth="2" />
-              </div>
+            <div className="mx-auto mb-4 flex justify-center hover:scale-105 transition-transform">
+              <AppLogo className="w-32 h-32 border-4 border-black rounded-[34px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] bg-white" />
             </div>
             <h1 className="text-4xl font-black text-black tracking-tight flex items-center justify-center gap-2">
               TINNTUU <Icon name="paw" className="w-7 h-7 text-[#FF4500] mt-1" />
