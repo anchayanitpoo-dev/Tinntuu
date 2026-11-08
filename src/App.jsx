@@ -352,6 +352,21 @@ export default function App() {
     setNewRoomName('');
   };
 
+  const handleDeleteGroup = async (e, roomId, createdBy) => {
+    e.stopPropagation(); // ป้องกันการกดเข้าไปในห้องแชท
+    if (createdBy !== user.uid) return;
+    if (window.confirm("คุณต้องการลบกลุ่มนี้ใช่หรือไม่? กลุ่มและข้อความในกลุ่มนี้จะถูกลบถาวร")) {
+      try {
+        await deleteDoc(doc(db, 'group_chats', roomId));
+        if (currentChatId === roomId) {
+          setCurrentChatId(null);
+        }
+      } catch (error) {
+        console.error("Error deleting group:", error);
+      }
+    }
+  };
+
   const handleAddEvent = async (e) => {
     e.preventDefault();
     if (!newEvent.title || !newEvent.date || !newEvent.time) return;
@@ -722,6 +737,17 @@ export default function App() {
                             <h3 className="font-bold text-slate-800 truncate">{room.name}</h3>
                             <p className="text-sm text-slate-500 line-clamp-1">แตะเพื่อเข้าร่วมการสนทนา</p>
                           </div>
+                          
+                          {/* ปุ่มลบกลุ่ม (จะแสดงเฉพาะกลุ่มที่คุณสร้าง) */}
+                          {room.createdBy === user.uid && (
+                            <button 
+                              onClick={(e) => handleDeleteGroup(e, room.id, room.createdBy)}
+                              className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-200 shadow-sm transition-colors shrink-0"
+                              title="ลบกลุ่ม"
+                            >
+                              <Icon name="trash" className="w-4 h-4"/>
+                            </button>
+                          )}
                         </div>
                       ))}
                     </div>
