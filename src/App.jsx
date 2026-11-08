@@ -99,7 +99,7 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [groupRooms, setGroupRooms] = useState([]);
   const [newRoomName, setNewRoomName] = useState('');
-  const [chatSearchQuery, setChatSearchQuery] = useState('');
+  const [chatSearchQuery, setChatSearchQuery] = useState(''); // State สำหรับช่องค้นหาเพื่อน
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -307,6 +307,8 @@ export default function App() {
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
   const currentProfile = othersProfiles[0]; 
   const uniqueMatches = Array.from(new Set(matches.map(m => m.participants.find(uid => uid !== user.uid))));
+  
+  // Logic สำหรับค้นหาเพื่อนในช่องแชท
   const filteredMatches = uniqueMatches.filter(otherUid => {
     const p = allProfiles.find(p => p.uid === otherUid);
     return p && p.name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim());
@@ -337,13 +339,15 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans pb-28 relative text-slate-800 overflow-x-hidden">
       
-      <header className="px-6 py-4 sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 flex justify-between items-center">
+      {/* เอาปุ่มแว่นขยายที่ Header ออกเพื่อให้สะอาดขึ้น */}
+      <header className="px-6 py-4 sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-100 flex justify-center items-center">
         <h1 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-600 to-red-400 flex items-center gap-2">
           TINNTUU <Icon name="cat" className="w-6 h-6 text-red-500" />
         </h1>
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pt-4">
+        {/* --- SWIPE TAB --- */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
             {currentProfile ? (
@@ -372,10 +376,170 @@ export default function App() {
           </div>
         )}
 
-        {/* ... Tab Schedule, Practice, Chat เหมือนเดิม ... (ลดโค้ดในตัวอย่างให้กระชับ) */}
-        {activeTab === 'schedule' && (<div className="p-4 bg-white rounded-3xl text-center">หน้าตารางเวลา</div>)}
-        {activeTab === 'practice' && (<div className="p-4 bg-white rounded-3xl text-center">หน้าแชทกับแมว</div>)}
-        {activeTab === 'chat' && (<div className="p-4 bg-white rounded-3xl text-center">หน้าแชทรวม</div>)}
+        {/* --- SCHEDULE TAB --- */}
+        {activeTab === 'schedule' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-[60vh]">
+            <div className="p-5 border-b border-slate-100 bg-slate-50/50">
+              <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Icon name="calendar" className="text-red-500" /> ตารางของฉัน
+              </h2>
+              <form onSubmit={handleAddEvent} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
+                <input type="text" placeholder="ชื่อกิจกรรม" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm" required />
+                <div className="flex gap-2">
+                  <input type="date" value={newEvent.date} onChange={e=>setNewEvent({...newEvent, date: e.target.value})} className="flex-1 bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm" required />
+                  <input type="time" value={newEvent.time} onChange={e=>setNewEvent({...newEvent, time: e.target.value})} className="flex-1 bg-slate-50 border border-slate-200 px-4 py-2.5 rounded-xl text-sm" required />
+                </div>
+                <button type="submit" className="w-full bg-red-600 text-white text-sm font-semibold py-2.5 rounded-xl">เพิ่มกิจกรรม</button>
+              </form>
+            </div>
+            <div className="flex-1 p-5 space-y-3">
+              {(myProfile.schedule || []).map(ev => (
+                <div key={ev.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div>
+                    <h4 className="font-semibold text-slate-800 text-sm">{ev.title}</h4>
+                    <p className="text-xs text-slate-500 mt-1">{ev.date} | {ev.time}</p>
+                  </div>
+                  <button onClick={() => handleDeleteEvent(ev.id)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-red-400 shadow-sm"><Icon name="trash" className="w-4 h-4" /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* --- PRACTICE TAB --- */}
+        {activeTab === 'practice' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden h-[calc(100vh-180px)] flex flex-col relative">
+            <div className="p-4 border-b border-slate-100 bg-slate-50/50 z-10">
+              <h2 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
+                <Icon name="bulb" className="text-amber-500" /> ซ้อมแชทกับแมว
+              </h2>
+              <div className="flex gap-2">
+                {[ { id: 'friendly', label: 'เป็นมิตร' }, { id: 'flirty', label: 'หยอดเก่ง' }, { id: 'sarcastic', label: 'กวนโอ๊ย' } ].map(vibe => (
+                  <button key={vibe.id} onClick={() => setCatVibe(vibe.id)} className={`flex-1 py-1.5 text-xs font-semibold rounded-full border transition-all ${catVibe === vibe.id ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-white text-slate-500 border-slate-200'}`}>
+                    {vibe.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-slate-50/50">
+              {practiceMessages.map(msg => (
+                <div key={msg.id} className={`max-w-[75%] flex flex-col ${msg.sender === 'user' ? 'self-end' : 'self-start'}`}>
+                  {msg.sender === 'ai' && (
+                    <div className="flex items-center gap-2 mb-1">
+                      <img src={CAT_MASCOT} className="w-6 h-6 rounded-full object-cover shadow-sm" />
+                      <span className="text-[10px] font-bold text-slate-400">แมวเหมียว AI ({catVibe})</span>
+                    </div>
+                  )}
+                  <div className={`p-3.5 text-sm rounded-2xl ${msg.sender === 'user' ? 'bg-amber-500 text-white rounded-br-sm shadow-md' : 'bg-white text-slate-800 rounded-bl-sm shadow-sm border border-slate-100'}`}>
+                    {msg.text}
+                  </div>
+                </div>
+              ))}
+              {isAiTyping && (
+                <div className="self-start flex items-center gap-2">
+                   <img src={CAT_MASCOT} className="w-6 h-6 rounded-full object-cover shadow-sm" />
+                   <div className="bg-white px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm border flex gap-1">
+                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                     <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                   </div>
+                </div>
+              )}
+              <div ref={practiceEndRef} />
+            </div>
+
+            <form onSubmit={handlePracticeSubmit} className="p-3 bg-white border-t border-slate-100 flex gap-2">
+              <input value={practiceInput} onChange={e=>setPracticeInput(e.target.value)} placeholder="ทักทายมาสคอตแมว..." className="flex-1 bg-slate-100 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20" />
+              <button type="submit" disabled={!practiceInput.trim() || isAiTyping} className="w-12 h-12 bg-amber-500 text-white rounded-full flex items-center justify-center shadow-md transition-all disabled:opacity-50">
+                <Icon name="send" className="w-5 h-5" />
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* --- CHAT TAB --- */}
+        {activeTab === 'chat' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden h-[calc(100vh-180px)] flex flex-col">
+            {activeChatType === 'list' ? (
+              <div className="flex flex-col h-full">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                  <div className="flex bg-slate-200/60 p-1 rounded-xl mb-4">
+                    <button onClick={() => setChatViewTab('private')} className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${chatViewTab === 'private' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>แชทส่วนตัว</button>
+                    <button onClick={() => setChatViewTab('group')} className={`flex-1 py-1.5 text-sm font-semibold rounded-lg transition-all ${chatViewTab === 'group' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>ห้องกลุ่ม</button>
+                  </div>
+                  
+                  {/* ช่องค้นหาเพื่อน (เพิ่มเข้ามาใหม่ในแชทส่วนตัว) */}
+                  {chatViewTab === 'private' && (
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                        <Icon name="search" className="w-4 h-4 text-slate-400" />
+                      </div>
+                      <input 
+                        type="text" 
+                        placeholder="ค้นหาเพื่อนที่แมตช์แล้ว..." 
+                        value={chatSearchQuery}
+                        onChange={(e) => setChatSearchQuery(e.target.value)}
+                        className="w-full bg-white border border-slate-200 pl-10 pr-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20"
+                      />
+                    </div>
+                  )}
+
+                  {chatViewTab === 'group' && (
+                    <form onSubmit={handleCreateGroup} className="flex gap-2">
+                      <input type="text" placeholder="ตั้งชื่อห้องใหม่..." value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} className="flex-1 bg-white border border-slate-200 text-sm py-2.5 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500/20" required />
+                      <button type="submit" className="px-4 bg-slate-800 text-white rounded-xl text-sm font-semibold"><Icon name="plus" className="w-4 h-4" /></button>
+                    </form>
+                  )}
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2">
+                  {chatViewTab === 'private' && filteredMatches.length > 0 ? filteredMatches.map(otherUid => {
+                    const profile = allProfiles.find(p => p.uid === otherUid);
+                    if(!profile) return null;
+                    const match = matches.find(m => m.participants.includes(otherUid));
+                    return (
+                      <div key={otherUid} onClick={() => { setCurrentChatId(match.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 cursor-pointer">
+                        <img src={profile.img} className="w-14 h-14 rounded-full object-cover shadow-sm" />
+                        <h3 className="font-semibold text-slate-800">{profile.name}</h3>
+                      </div>
+                    )
+                  }) : chatViewTab === 'private' && (
+                    <div className="p-4 text-center text-slate-400 text-sm">ไม่พบเพื่อนที่คุณค้นหา</div>
+                  )}
+
+                  {chatViewTab === 'group' && groupRooms.map(room => (
+                    <div key={room.id} onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 cursor-pointer">
+                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center shadow-sm">
+                        <Icon name="users" className="w-6 h-6 text-white" />
+                      </div>
+                      <h3 className="font-semibold text-slate-800">{room.name}</h3>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col h-full relative">
+                <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-white z-10">
+                  <button onClick={() => setActiveChatType('list')} className="text-slate-400 hover:text-slate-800"><Icon name="x" className="w-5 h-5" /></button>
+                  <span className="font-semibold text-slate-800">{activeChatType === 'private' ? 'แชทส่วนตัว' : 'แชทกลุ่ม'}</span>
+                </div>
+                <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-4 bg-slate-50/50">
+                  {messages.map(m => (
+                    <div key={m.id} className={`max-w-[75%] p-3.5 text-sm rounded-2xl flex flex-col ${m.senderId === user.uid ? 'bg-red-600 text-white self-end rounded-br-sm shadow-md' : 'bg-white text-slate-800 self-start rounded-bl-sm shadow-sm border border-slate-100'}`}>
+                      {m.text}
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+                <form onSubmit={sendMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2">
+                  <input value={inputText} onChange={e=>setInputText(e.target.value)} placeholder="พิมพ์ข้อความ..." className="flex-1 bg-slate-100 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+                  <button type="submit" disabled={!inputText.trim()} className="w-12 h-12 bg-red-600 text-white rounded-full flex items-center justify-center disabled:opacity-50"><Icon name="send" className="w-5 h-5" /></button>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* --- PROFILE TAB --- */}
         {activeTab === 'profile' && (
@@ -397,16 +561,13 @@ export default function App() {
               </div>
             </form>
 
-            {/* ส่วนเสริม: คู่มือ และ แจ้งปัญหา */}
             <div className="pt-6 mt-6 border-t border-slate-100 space-y-3">
               <button type="button" onClick={() => setShowManual(true)} className="w-full bg-blue-50 text-blue-600 font-semibold py-3.5 rounded-xl border border-blue-100 flex items-center justify-center gap-2">
                 <Icon name="help" className="w-5 h-5" /> คู่มือการใช้งาน (Manual)
               </button>
-              
               <button type="button" onClick={() => setShowReport(true)} className="w-full bg-amber-50 text-amber-600 font-semibold py-3.5 rounded-xl border border-amber-100 flex items-center justify-center gap-2">
                 <Icon name="alert" className="w-5 h-5" /> แจ้งปัญหาการใช้งาน (Report)
               </button>
-              
               <button type="button" onClick={handleDeleteAccount} className="w-full text-red-500 font-semibold py-3.5 rounded-xl border border-red-200 bg-red-50">
                 ลบบัญชีผู้ใช้ (Delete Account)
               </button>
@@ -416,6 +577,7 @@ export default function App() {
 
       </main>
 
+      {/* Floating Bottom Nav */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ { id: 'swipe', icon: 'paw' }, { id: 'schedule', icon: 'calendar' }, { id: 'practice', icon: 'bulb' }, { id: 'chat', icon: 'chat' }, { id: 'profile', icon: 'user' } ].map(tab => (
@@ -427,8 +589,6 @@ export default function App() {
       </div>
 
       {/* --- MODALS --- */}
-      
-      {/* 1. Modal คู่มือการใช้งาน */}
       {showManual && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
@@ -439,7 +599,7 @@ export default function App() {
               <p>🐾 <b>แท็บหาเพื่อน (Swipe):</b> ปัดขวาหรือกดหัวใจเพื่อ Match หากใจตรงกันจะได้แชทส่วนตัว ปัดซ้ายเพื่อข้าม</p>
               <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน เพื่อช่วยจัดสรรเวลา</p>
               <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หยอดเก่ง, กวนโอ๊ย)</p>
-              <p>💬 <b>แท็บแชท:</b> แบ่งเป็นแชทส่วนตัว (คนที่ Match) และสามารถสร้างห้องแชทกลุ่มชวนเพื่อนคุยได้</p>
+              <p>💬 <b>แท็บแชท:</b> แบ่งเป็นแชทส่วนตัว (คนที่ Match) และสามารถสร้างห้องแชทกลุ่มชวนเพื่อนคุยได้ มีช่องค้นหารายชื่อเพื่อนด้วยนะ!</p>
               <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
             </div>
             <button onClick={() => setShowManual(false)} className="mt-6 w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200">
@@ -449,7 +609,6 @@ export default function App() {
         </div>
       )}
 
-      {/* 2. Modal แจ้งปัญหา */}
       {showReport && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
