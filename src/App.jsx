@@ -191,7 +191,7 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // ระบบ Auto-Read: เมื่อเปิดห้องแชททิ้งไว้ ข้อความเข้าใหม่จะถูกนับว่าอ่านแล้วทันที
+  // ระบบ Auto-Read: เมื่อเปิดห้องแชททิ้งไว้ ข้อความใหม่ที่เข้ามาจะเคลียร์เป็นอ่านแล้วทันที
   useEffect(() => {
     if (!user || !currentChatId) return;
 
@@ -208,7 +208,7 @@ export default function App() {
         setDoc(doc(db, 'user_private', user.uid), { [`readGroupCounts.${currentChatId}`]: totalMsgs }, { merge: true });
       }
     }
-  }, [messages, currentChatId, activeChatType, user]);
+  }, [messages, currentChatId, activeChatType, user, matches, groupRooms, myProfile.readGroupCounts]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
   useEffect(() => { practiceEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [practiceMessages, isAiTyping]);
@@ -309,6 +309,7 @@ export default function App() {
     setDragDelta(0);
   };
 
+  // ฟังก์ชันส่งข้อความ (พร้อมเพิ่มตัวเลขอ่านค้างให้อีกฝ่ายทันทีทุกครั้งที่ส่ง)
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -321,7 +322,6 @@ export default function App() {
       createdAt: serverTimestamp()
     });
     
-    // อัปเดตตัวนับข้อความ ป้องกัน Error กรณี matchDoc ยังโหลดไม่เสร็จ
     if (activeChatType === 'private') {
       const matchDoc = matches.find(m => m.id === currentChatId);
       const otherUid = matchDoc?.participants?.find(uid => uid !== user.uid);
@@ -460,7 +460,6 @@ export default function App() {
     setActiveChatType('private');
     setActiveTab('chat');
     
-    // รีเซ็ตตัวเลขอ่านแล้วทันทีเมื่อคลิกเข้าห้อง
     if (matchInfo.unreadCounts?.[user.uid] > 0) {
       await setDoc(doc(db, 'matches', matchInfo.id), {
         [`unreadCounts.${user.uid}`]: 0
@@ -473,7 +472,6 @@ export default function App() {
     setActiveChatType('group_chat');
     setActiveTab('chat');
 
-    // รีเซ็ตตัวเลขอ่านแล้วสำหรับแชทกลุ่ม
     const totalMsgs = room.messageCount || 0;
     if ((myProfile.readGroupCounts?.[room.id] || 0) < totalMsgs) {
       await setDoc(doc(db, 'user_private', user.uid), {
@@ -535,6 +533,7 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans pb-28 relative text-slate-800 overflow-x-hidden">
       
+      {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg text-sm flex items-center gap-2 animate-bounce">
           <Icon name="chat" className="w-4 h-4 text-red-400" /> {toastMsg}
@@ -787,7 +786,6 @@ export default function App() {
                               </p>
                             </div>
                             
-                            {/* แสดงจำนวนข้อความที่ยังไม่ได้อ่าน */}
                             {unreadCount > 0 && (
                               <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm">
                                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -1064,7 +1062,6 @@ export default function App() {
             >
               <Icon name={tab.icon} className="w-6 h-6" />
               
-              {/* จุดตัวเลขสีแดงแสดงยอดรวมข้อความยังไม่ได้อ่าน */}
               {tab.badge > 0 && (
                 <div className="absolute top-0 right-0 w-5 h-5 bg-red-600 rounded-full text-[10px] text-white flex items-center justify-center font-bold shadow-md border-2 border-white z-10 animate-pulse">
                   {tab.badge > 99 ? '99+' : tab.badge}
