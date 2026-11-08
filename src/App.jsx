@@ -64,14 +64,12 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
   );
 };
 
-const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
-
-// รูปภาพโลโก้น้องแมวหน้าเข้าสู่ระบบ (สามารถเปลี่ยนเป็น URL รูปของคุณได้)
-const APP_LOGO = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600&auto=format&fit=crop&q=80";
+// เปลี่ยนพาธโลโก้แอป / รูปแมวตั้งต้นทั้งหมดเป็นรูปโลโก้สีแดง (ใส่ไฟล์รูปไว้ที่ public/logo.png)
+const APP_LOGO = "/logo.png";
 
 const DEFAULT_PROFILE = {
   name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
-  img: CAT_MASCOT, tags: 'หาเพื่อน, ทาสแมว', 
+  img: APP_LOGO, tags: 'หาเพื่อน, ทาสแมว', 
   dob: '', contact: '', swiped: [], schedule: [], readGroupCounts: {}
 };
 
@@ -88,7 +86,7 @@ const calculateAge = (dobString) => {
 // ยิง Pop-up แจ้งเตือนของ Browser เมื่อเปิดสลับไปแท็บอื่นอยู่
 const triggerBrowserNotification = (title, body) => {
   if ("Notification" in window && Notification.permission === "granted") {
-    new Notification(title, { body, icon: CAT_MASCOT });
+    new Notification(title, { body, icon: APP_LOGO });
   }
 };
 
@@ -528,7 +526,6 @@ export default function App() {
     await setDoc(doc(db, 'user_private', user.uid), { schedule: updatedSchedule }, { merge: true });
   };
 
-  // อัปเดต handlePracticeSubmit ใช้ระบบ generateCatReply สมจริง
   const handlePracticeSubmit = (e) => {
     e.preventDefault();
     const text = practiceInput.trim();
@@ -600,17 +597,15 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
-  // --- LOGIN SCREEN (หน้าเข้าสู่ระบบพร้อมรูปโลโก้ และธีมสีแดง) ---
+  // --- LOGIN SCREEN (หน้าเข้าสู่ระบบพร้อมรูปโลโก้แมวสีแดง) ---
   if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 relative overflow-hidden">
-        {/* พื้นหลังตกแต่งธีมสีแดง */}
         <div className="absolute top-10 left-10 w-72 h-72 bg-red-400/20 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute bottom-10 right-10 w-72 h-72 bg-red-600/20 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl z-10 border border-white">
           <div className="text-center mb-8 flex flex-col items-center">
-            {/* โลโก้น้องแมวขยิบตาแบบกรอบมนธีมสีแดง */}
             <div className="w-28 h-28 mb-4 rounded-3xl overflow-hidden shadow-xl shadow-red-500/20 border-4 border-white bg-gradient-to-tr from-red-600 to-red-400 p-1 hover:scale-105 transition-transform duration-300">
               <img 
                 src={APP_LOGO} 
@@ -700,7 +695,7 @@ export default function App() {
                     className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform"
                   >
                     <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm">
-                      <img src={profile.img || CAT_MASCOT} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                      <img src={profile.img || APP_LOGO} className="w-full h-full rounded-full object-cover border-2 border-white" />
                     </div>
                     <span className="text-[10px] font-semibold text-slate-700 truncate w-full text-center max-w-[60px]">{profile.name.split(' ')[0]}</span>
                   </div>
@@ -716,7 +711,7 @@ export default function App() {
                   onTouchStart={handleDragStart} onTouchMove={handleDragMove} onTouchEnd={handleDragEnd}
                   onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
                 >
-                  <img src={currentProfile.img || CAT_MASCOT} className="w-full h-full object-cover pointer-events-none" />
+                  <img src={currentProfile.img || APP_LOGO} className="w-full h-full object-cover pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
                   
                   {currentProfile.location && (
@@ -908,7 +903,7 @@ export default function App() {
 
                         return (
                           <div key={otherUid} onClick={() => openPrivateChat(matchDoc, p)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
-                            <img src={p.img || CAT_MASCOT} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
+                            <img src={p.img || APP_LOGO} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
                             <div className="flex-1">
                               <h3 className="font-bold text-slate-800">{p.name}</h3>
                               <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-red-600 font-semibold' : 'text-slate-500'}`}>
@@ -994,7 +989,7 @@ export default function App() {
                   <div className="font-bold text-slate-800 flex items-center gap-3">
                     {activeChatType === 'private' ? (
                       <>
-                        <img src={currentPartner?.img || CAT_MASCOT} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
+                        <img src={currentPartner?.img || APP_LOGO} className="w-9 h-9 rounded-full object-cover border border-slate-200" />
                         <div>
                           <h3 className="text-sm font-bold text-slate-800 leading-tight">{currentPartner?.name || 'แชทส่วนตัว'}</h3>
                           {currentPartner?.faculty && <span className="text-[10px] font-normal text-slate-400">คณะ{currentPartner.faculty}</span>}
@@ -1101,7 +1096,7 @@ export default function App() {
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
              <div className="text-center mb-6">
               <div className="relative w-28 h-28 mx-auto mb-4">
-                <img src={myProfile.img || CAT_MASCOT} className="w-full h-full rounded-full object-cover shadow-lg" />
+                <img src={myProfile.img || APP_LOGO} className="w-full h-full rounded-full object-cover shadow-lg border border-slate-200" />
                 <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-red-600 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-lg"><Icon name="camera" className="w-4 h-4" /></button>
                 <input type="file" ref={fileInputRef} onChange={handleImageFileChange} className="hidden" />
               </div>
