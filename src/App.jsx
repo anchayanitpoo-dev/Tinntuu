@@ -27,72 +27,86 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
-// --- 2. SVG Vector Cat Graphic System ---
-// เวกเตอร์รูปน้องแมวขยิบตาพร้อมกรอบไล่สีแดงส้ม (ใช้แทนรูปภาพทั้งหมด)
+// --- 2. SVG Vector Cat Graphic (ถอดแบบจากรูปภาพแมวสีแดงขยิบตา) ---
 const CatVectorLogo = ({ className = "w-full h-full" }) => (
   <svg viewBox="0 0 200 200" className={className} xmlns="http://www.w3.org/2000/svg">
     <defs>
+      {/* พื้นหลังไล่ระดับสี ส้ม -> แดง -> ชมพูเข้ม -> ม่วง */}
       <linearGradient id="catBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#ff7e5f" />
-        <stop offset="40%" stopColor="#feb47b" />
-        <stop offset="85%" stopColor="#e63946" />
-        <stop offset="100%" stopColor="#b71c1c" />
+        <stop offset="0%" stopColor="#FFA133" />
+        <stop offset="35%" stopColor="#FF455B" />
+        <stop offset="70%" stopColor="#D81B60" />
+        <stop offset="100%" stopColor="#6A1B9A" />
       </linearGradient>
-      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
-        <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.15" />
+
+      {/* เงาละมุนใต้อองค์ประกอบ */}
+      <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.12" />
       </filter>
     </defs>
     
-    {/* พื้นหลังกรอบมนสีแดงสดใส */}
-    <rect width="200" height="200" rx="48" fill="url(#catBgGrad)" />
+    {/* พื้นหลังกรอบมนสี่เหลี่ยม */}
+    <rect width="200" height="200" rx="46" fill="url(#catBgGrad)" />
     
+    {/* เส้นเอฟเฟกต์ดีใจข้างหูซ้าย (\ \) */}
+    <line x1="42" y1="68" x2="52" y2="55" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
+    <line x1="32" y1="78" x2="44" y2="72" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
+
     {/* หูซ้าย */}
-    <path d="M 42 82 Q 72 25 88 84" fill="#ffffff" />
-    <path d="M 49 79 Q 72 38 82 82" fill="#ffb4a2" />
+    <path d="M 64 68 C 64 36 90 32 98 62 Z" fill="#FFFFFF" />
+    <path d="M 70 66 C 72 44 86 42 92 63 Z" fill="#FFCDD2" />
     
     {/* หูขวา */}
-    <path d="M 158 82 Q 128 25 112 84" fill="#ffffff" />
-    <path d="M 151 79 Q 128 38 118 82" fill="#ffb4a2" />
+    <path d="M 136 68 C 136 36 110 32 102 62 Z" fill="#FFFFFF" />
+    <path d="M 130 66 C 128 44 114 42 108 63 Z" fill="#FFCDD2" />
     
-    {/* หัวแมว */}
-    <ellipse cx="100" cy="116" rx="58" ry="46" fill="#ffffff" filter="url(#shadow)" />
+    {/* หัวแมวสีขาว */}
+    <ellipse cx="100" cy="85" rx="42" ry="34" fill="#FFFFFF" />
     
-    {/* ตาซ้าย (ยิ้มขยิบตา) */}
-    <path d="M 68 108 Q 78 98 88 108" fill="none" stroke="#2d3748" strokeWidth="5.5" strokeLinecap="round" />
+    {/* ตาซ้าย (ขยิบตา >) */}
+    <path d="M 78 81 Q 86 90 94 81" fill="none" stroke="#4A0E2E" strokeWidth="4.5" strokeLinecap="round" />
     
-    {/* ตาขวา (ตากลมโตสดใส) */}
-    <ellipse cx="122" cy="105" rx="7.5" ry="9.5" fill="#2d3748" />
-    <circle cx="120" cy="102" r="2.5" fill="#ffffff" />
+    {/* ตาขวา (ตากลมโต) */}
+    <ellipse cx="120" cy="81" rx="6.5" ry="7.5" fill="#4A0E2E" />
+    <circle cx="118" cy="78" r="2.2" fill="#FFFFFF" />
     
-    {/* จมูกและปาก */}
-    <path d="M 97 114 Q 100 111 103 114 Q 100 119 97 114 Z" fill="#e63946" />
-    <path d="M 92 120 Q 100 128 100 120 Q 100 128 108 120" fill="none" stroke="#2d3748" strokeWidth="3" strokeLinecap="round" />
+    {/* ปากแมวยิ้มอ้าปาก */}
+    <path d="M 93 90 Q 100 100 107 90 Z" fill="#FF5252" />
+    <path d="M 91 89 Q 100 93 109 89" fill="none" stroke="#4A0E2E" strokeWidth="2.5" strokeLinecap="round" />
+
+    {/* หนวดแมวข้างซ้าย */}
+    <line x1="56" y1="82" x2="70" y2="85" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
+    <line x1="58" y1="92" x2="72" y2="90" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
     
-    {/* แก้มชมพู */}
-    <ellipse cx="68" cy="118" rx="8" ry="5" fill="#ff8787" opacity="0.6" />
-    <ellipse cx="132" cy="118" rx="8" ry="5" fill="#ff8787" opacity="0.6" />
+    {/* หนวดแมวข้างขวา */}
+    <line x1="144" y1="82" x2="130" y2="85" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
+    <line x1="142" y1="92" x2="128" y2="90" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
+
+    {/* บอลลูนคำพูดสีขาวขนาดใหญ่ */}
+    <path 
+      d="M 52 120 C 44 100 156 100 148 120 C 148 145 130 152 102 152 L 68 168 L 74 150 C 52 150 52 135 52 120 Z" 
+      fill="#FFFFFF" 
+      filter="url(#softShadow)"
+    />
     
-    {/* หนวดแมว */}
-    <path d="M 40 108 L 60 112 M 38 118 L 59 118 M 160 108 L 140 112 M 162 118 L 141 118" stroke="#2d3748" strokeWidth="3" strokeLinecap="round" opacity="0.85" />
-    
-    {/* บับเบิ้ลคำพูดน่ารักๆ */}
-    <g transform="translate(68, 134)">
-      <rect width="64" height="34" rx="17" fill="#ffffff" filter="url(#shadow)" />
-      <circle cx="84" cy="151" r="5" fill="#ffffff" />
-      <circle cx="21" cy="17" r="4" fill="#ff7e5f" />
-      <circle cx="32" cy="17" r="4" fill="#e63946" />
-      <circle cx="43" cy="17" r="4" fill="#9b5de5" />
-    </g>
+    {/* จุด 3 สีในบอลลูนคำพูด (ส้ม, ชมพู, ม่วง) */}
+    <circle cx="80" cy="125" r="7.5" fill="#FF7043" />
+    <circle cx="100" cy="125" r="7.5" fill="#E91E63" />
+    <circle cx="120" cy="125" r="7.5" fill="#8E24AA" />
+
+    {/* อุ้งเท้าหน้าแมว 2 ข้างเกาะขอบบอลลูนคำพูด */}
+    <ellipse cx="76" cy="106" rx="9" ry="7" fill="#FFFFFF" />
+    <ellipse cx="124" cy="106" rx="9" ry="7" fill="#FFFFFF" />
   </svg>
 );
 
-// คอมโพเนนต์แสดงผลรูปโปรไฟล์ (ถ้าไม่มีรูป URL อัปโหลด จะใช้รูปแมวเวกเตอร์)
+// คอมโพเนนต์แสดงผลรูปโปรไฟล์ (หากผู้ใช้ยังไม่ได้อัปโหลดรูป จะใช้รูปแมวเวกเตอร์นี้เป็นรูปตั้งต้น)
 const UserAvatar = ({ src, className = "w-12 h-12", alt = "User Avatar" }) => {
   if (src && (src.startsWith('http') || src.startsWith('data:image'))) {
     return <img src={src} alt={alt} className={`${className} object-cover`} />;
   }
   return (
-    <div className={`${className} flex items-center justify-center overflow-hidden bg-slate-100`}>
+    <div className={`${className} flex items-center justify-center overflow-hidden bg-slate-100 rounded-full`}>
       <CatVectorLogo className="w-full h-full" />
     </div>
   );
@@ -660,7 +674,7 @@ export default function App() {
 
   if (authLoading) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="animate-pulse text-red-500"><Icon name="cat" className="w-12 h-12" /></div></div>;
 
-  // --- LOGIN SCREEN (ใช้องค์ประกอบเวกเตอร์รูปแมว SVG สีแดงฉูดฉาด) ---
+  // --- LOGIN SCREEN ---
   if (!user) {
     return (
       <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col justify-center items-center p-6 relative overflow-hidden">
@@ -669,7 +683,7 @@ export default function App() {
 
         <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl z-10 border border-white">
           <div className="text-center mb-8 flex flex-col items-center">
-            {/* โลโก้เวกเตอร์รูปแมวสีแดงสุดน่ารัก */}
+            {/* โลโก้เวกเตอร์รูปแมวขยิบตาแบบที่ผู้ใช้ต้องการ */}
             <div className="w-28 h-28 mb-4 shadow-xl shadow-red-500/20 border-4 border-white rounded-3xl overflow-hidden hover:scale-105 transition-transform duration-300">
               <CatVectorLogo />
             </div>
@@ -1227,7 +1241,7 @@ export default function App() {
 
       </main>
 
-      {/* Navigation Bar ด้านล่างพร้อมจุดตัวเลขสีแดง */}
+      {/* Navigation Bar ด้านล่าง */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
