@@ -3,7 +3,8 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
   query, orderBy, limit, serverTimestamp, setDoc, doc,
-  enableIndexedDbPersistence, where, arrayUnion, deleteDoc
+  enableIndexedDbPersistence, where, arrayUnion, deleteDoc,
+  increment // เพิ่ม increment เข้ามาเพื่อใช้นับจำนวนข้อความ
 } from 'firebase/firestore';
 import { 
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, 
@@ -68,7 +69,7 @@ const CAT_MASCOT = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba
 const DEFAULT_PROFILE = {
   name: '', faculty: 'ธรรมศาสตร์', location: 'เชียงราก', bio: 'ทักมาคุยกันได้นะ เมี๊ยว~', 
   img: CAT_MASCOT, tags: 'หาเพื่อน, ทาสแมว', 
-  dob: '', contact: '', swiped: [], schedule: []
+  dob: '', contact: '', swiped: [], schedule: [], readGroupCounts: {}
 };
 
 const calculateAge = (dobString) => {
@@ -149,7 +150,7 @@ export default function App() {
     });
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
-          if (change.type === "modified" && change.doc.data().lastSender !== user.uid) {
+          if (change.type === "modified" && change.doc.data().lastSender !== user.uid && change.doc.data().unreadCounts?.[user.uid] > 0) {
             setToastMsg('มีข้อความใหม่จากเพื่อน!'); setTimeout(() => setToastMsg(null), 3500);
           }
         });
@@ -166,7 +167,12 @@ export default function App() {
     const unsub = onSnapshot(doc(db, 'user_private', user.uid), snapshot => {
       const data = snapshot.exists() ? snapshot.data() : {};
       setLocalSwiped(data.swiped || []);
-      setMyProfile(prev => ({ ...prev, swiped: data.swiped || [], schedule: data.schedule || [] }));
+      setMyProfile(prev => ({ 
+        ...prev, 
+        swiped: data.swiped || [], 
+        schedule: data.schedule || [],
+        readGroupCounts: data.readGroupCounts || {} // ดึงข้อมูลการอ่านแชทกลุ่ม
+      }));
     });
     return () => unsub();
   }, [user]);
@@ -179,6 +185,25 @@ export default function App() {
     });
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
+
+  // ระบบ Auto-Read: เมื่อเปิดห้องแชทค้างไว้ แล้วมีข้อความเข้ามา จะถูกนับว่าอ่านแล้วทันที
+  useEffect(() => {
+    if (!user || !currentChatId) return;
+
+    if (activeChatType === 'private') {
+      const matchDoc = matches.find(m => m.id === currentChatId);
+      if (matchDoc && matchDoc.unreadCounts?.[user.uid] > 0) {
+        setDoc(doc(db, 'matches', currentChatId), { [`unreadCounts.${user.uid}`]: 0 }, { merge: true });
+      }
+    } else if (activeChatType === 'group_chat') {
+      const groupDoc = groupRooms.find(g => g.id === currentChatId);
+      const readMsgs = myProfile.readGroupCounts?.[currentChatId] || 0;
+      const totalMsgs = groupDoc?.messageCount || 0;
+      if (groupDoc && readMsgs < totalMsgs) {
+        setDoc(doc(db, 'user_private', user.uid), { [`readGroupCounts.${currentChatId}`]: totalMsgs }, { merge: true });
+      }
+    }
+  }, [messages, matches, groupRooms, currentChatId, activeChatType, user, myProfile.readGroupCounts]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, activeChatType]);
   useEffect(() => { practiceEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [practiceMessages, isAiTyping]);
@@ -258,7 +283,11 @@ export default function App() {
       setLocalSwiped(prev => prev.includes(targetUid) ? prev : [...prev, targetUid]);
       await setDoc(doc(db, 'user_private', user.uid), { swiped: arrayUnion(targetUid) }, { merge: true });
       if (isLike) {
-        const matchRef = await addDoc(collection(db, 'matches'), { participants: [user.uid, targetUid], matchedAt: serverTimestamp() });
+        const matchRef = await addDoc(collection(db, 'matches'), { 
+          participants: [user.uid, targetUid], 
+          matchedAt: serverTimestamp(),
+          unreadCounts: { [user.uid]: 0, [targetUid]: 0 }
+        });
         setCurrentChatId(matchRef.id); setActiveChatType('private'); setActiveTab('chat');
       }
     } catch (err) {}
@@ -285,8 +314,19 @@ export default function App() {
       senderName: myProfile.name,
       createdAt: serverTimestamp()
     });
+    
+    // อัปเดตตัวนับข้อความ
     if (activeChatType === 'private') {
-      await setDoc(doc(db, 'matches', currentChatId), { lastSender: user.uid }, { merge: true });
+      const matchDoc = matches.find(m => m.id === currentChatId);
+      const otherUid = matchDoc.participants.find(uid => uid !== user.uid);
+      await setDoc(doc(db, 'matches', currentChatId), { 
+        lastSender: user.uid,
+        [`unreadCounts.${otherUid}`]: increment(1)
+      }, { merge: true });
+    } else if (activeChatType === 'group_chat') {
+      await setDoc(doc(db, 'group_chats', currentChatId), {
+        messageCount: increment(1)
+      }, { merge: true });
     }
   };
 
@@ -348,12 +388,17 @@ export default function App() {
   const handleCreateGroup = async (e) => {
     e.preventDefault();
     if (!newRoomName.trim()) return;
-    await addDoc(collection(db, 'group_chats'), { name: newRoomName.trim(), createdBy: user.uid, createdAt: serverTimestamp() });
+    await addDoc(collection(db, 'group_chats'), { 
+      name: newRoomName.trim(), 
+      createdBy: user.uid, 
+      createdAt: serverTimestamp(),
+      messageCount: 0 // ตั้งค่าเริ่มต้น
+    });
     setNewRoomName('');
   };
 
   const handleDeleteGroup = async (e, roomId, createdBy) => {
-    e.stopPropagation(); // ป้องกันการกดเข้าไปในห้องแชท
+    e.stopPropagation();
     if (createdBy !== user.uid) return;
     if (window.confirm("คุณต้องการลบกลุ่มนี้ใช่หรือไม่? กลุ่มและข้อความในกลุ่มนี้จะถูกลบถาวร")) {
       try {
@@ -421,7 +466,6 @@ export default function App() {
     return p && p.name.toLowerCase().includes(chatSearchQuery.toLowerCase().trim());
   });
 
-  // ค้นหาข้อมูลห้องแชทปัจจุบัน เพื่อนำมาแสดงชื่อใน Header
   const currentMatchDoc = matches.find(m => m.id === currentChatId);
   const currentPartnerUid = currentMatchDoc?.participants.find(uid => uid !== user?.uid);
   const currentPartner = allProfiles.find(p => p.uid === currentPartnerUid);
@@ -452,7 +496,6 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans pb-28 relative text-slate-800 overflow-x-hidden">
       
-      {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg text-sm flex items-center gap-2 animate-bounce">
           <Icon name="chat" className="w-4 h-4 text-red-400" /> {toastMsg}
@@ -470,7 +513,6 @@ export default function App() {
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
             
-            {/* สตอรี่แมตช์ใหม่ (Matches Story Bar) */}
             <div className="bg-white rounded-3xl p-3 flex gap-4 overflow-x-auto shadow-sm border border-slate-100 scrollbar-none">
               <div className="flex flex-col items-center gap-1 min-w-[60px]">
                 <div className="w-14 h-14 bg-red-50 rounded-full border-2 border-dashed border-red-300 flex items-center justify-center text-red-500 shadow-sm">
@@ -498,7 +540,6 @@ export default function App() {
               })}
             </div>
 
-            {/* การ์ดปัดเพื่อน */}
             {currentProfile ? (
               <div className="relative w-full h-[54vh] rounded-[2rem] overflow-hidden shadow-2xl bg-white">
                 <div 
@@ -659,7 +700,6 @@ export default function App() {
                   <h2 className="text-2xl font-bold text-slate-800">ข้อความ</h2>
                 </div>
 
-                {/* ช่องค้นหาเพื่อน */}
                 <div className="relative mb-6">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Icon name="search" className="w-5 h-5 text-slate-400" />
@@ -673,7 +713,6 @@ export default function App() {
                   />
                 </div>
 
-                {/* แถบสลับระหว่าง แชทส่วนตัว / แชทกลุ่ม */}
                 <div className="flex gap-2 mb-4 bg-slate-50 p-1 rounded-xl border border-slate-100 shrink-0">
                   <button 
                     onClick={() => setChatViewTab('private')} 
@@ -689,7 +728,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* แสดงรายการแชท */}
                 <div className="space-y-2 overflow-y-auto flex-1 pb-10">
                   {chatViewTab === 'private' ? (
                     filteredMatches.length > 0 ? (
@@ -697,13 +735,26 @@ export default function App() {
                         const p = allProfiles.find(profile => profile.uid === otherUid);
                         const matchDoc = matches.find(m => m.participants.includes(otherUid));
                         if (!p || !matchDoc) return null;
+                        
+                        // ดึงจำนวนข้อความที่ยังไม่ได้อ่าน
+                        const unreadCount = matchDoc.unreadCounts?.[user.uid] || 0;
+
                         return (
                           <div key={otherUid} onClick={() => openPrivateChat(matchDoc, p)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
                             <img src={p.img || CAT_MASCOT} className="w-14 h-14 rounded-full object-cover shadow-sm border border-slate-200" />
                             <div className="flex-1">
                               <h3 className="font-bold text-slate-800">{p.name}</h3>
-                              <p className="text-sm text-slate-500 line-clamp-1">แตะเพื่อเข้าสู่ห้องแชท</p>
+                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
+                                {unreadCount > 0 ? 'มีข้อความใหม่' : 'แตะเพื่อเข้าสู่ห้องแชท'}
+                              </p>
                             </div>
+                            
+                            {/* แจ้งเตือนข้อความที่ยังไม่ได้อ่าน */}
+                            {unreadCount > 0 && (
+                              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                              </div>
+                            )}
                           </div>
                         )
                       })
@@ -728,41 +779,54 @@ export default function App() {
                         </button>
                       </form>
 
-                      {groupRooms.map(room => (
-                        <div key={room.id} onClick={() => openGroupChat(room)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
-                          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100 shadow-sm shrink-0">
-                            <Icon name="users" className="w-6 h-6" />
+                      {groupRooms.map(room => {
+                        // คำนวณข้อความกลุ่มที่ยังไม่ได้อ่าน
+                        const totalMsgs = room.messageCount || 0;
+                        const readMsgs = myProfile.readGroupCounts?.[room.id] || 0;
+                        const unreadCount = Math.max(0, totalMsgs - readMsgs);
+
+                        return (
+                          <div key={room.id} onClick={() => openGroupChat(room)} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border border-transparent hover:border-slate-100">
+                            <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center text-red-500 border border-red-100 shadow-sm shrink-0">
+                              <Icon name="users" className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1 overflow-hidden">
+                              <h3 className="font-bold text-slate-800 truncate">{room.name}</h3>
+                              <p className={`text-sm line-clamp-1 ${unreadCount > 0 ? 'text-slate-800 font-semibold' : 'text-slate-500'}`}>
+                                {unreadCount > 0 ? 'มีข้อความใหม่' : 'แตะเพื่อเข้าร่วมการสนทนา'}
+                              </p>
+                            </div>
+
+                            {/* แจ้งเตือนข้อความกลุ่มที่ยังไม่ได้อ่าน */}
+                            {unreadCount > 0 && (
+                              <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-[11px] text-white font-bold shrink-0 shadow-sm mr-2">
+                                {unreadCount > 99 ? '99+' : unreadCount}
+                              </div>
+                            )}
+                            
+                            {room.createdBy === user.uid && (
+                              <button 
+                                onClick={(e) => handleDeleteGroup(e, room.id, room.createdBy)}
+                                className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-200 shadow-sm transition-colors shrink-0"
+                                title="ลบกลุ่ม"
+                              >
+                                <Icon name="trash" className="w-4 h-4"/>
+                              </button>
+                            )}
                           </div>
-                          <div className="flex-1 overflow-hidden">
-                            <h3 className="font-bold text-slate-800 truncate">{room.name}</h3>
-                            <p className="text-sm text-slate-500 line-clamp-1">แตะเพื่อเข้าร่วมการสนทนา</p>
-                          </div>
-                          
-                          {/* ปุ่มลบกลุ่ม (จะแสดงเฉพาะกลุ่มที่คุณสร้าง) */}
-                          {room.createdBy === user.uid && (
-                            <button 
-                              onClick={(e) => handleDeleteGroup(e, room.id, room.createdBy)}
-                              className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-200 shadow-sm transition-colors shrink-0"
-                              title="ลบกลุ่ม"
-                            >
-                              <Icon name="trash" className="w-4 h-4"/>
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
               </div>
             ) : (
-              /* --- หน้าต่างห้องแชท (แสดงชื่อกลุ่ม/ชื่อคู่สนทนาที่ Header) --- */
               <div className="flex flex-col h-full bg-slate-50">
                 <div className="p-4 bg-white border-b flex items-center gap-3 shrink-0">
                   <button onClick={() => setCurrentChatId(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
                     <Icon name="chevronLeft" className="w-6 h-6" />
                   </button>
 
-                  {/* ส่วนแสดงชื่อกลุ่ม หรือ ชื่อเพื่อน ใน Header */}
                   <div className="font-bold text-slate-800 flex items-center gap-3">
                     {activeChatType === 'private' ? (
                       <>
@@ -786,7 +850,6 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* พื้นที่แสดงข้อความ รูปภาพ และเสียง */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.map(msg => {
                     const isMe = msg.senderId === user.uid;
@@ -810,7 +873,6 @@ export default function App() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* ฟอร์มส่งข้อความ */}
                 <form onSubmit={sendMessage} className="p-3 bg-white border-t flex items-center gap-2 shrink-0">
                   <button 
                     type="button" 
@@ -888,7 +950,6 @@ export default function App() {
                 <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" required />
               </div>
 
-              {/* วันเกิด & อายุ */}
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="text-xs font-semibold text-slate-500 ml-1">วัน/เดือน/ปีเกิด</label>
@@ -900,7 +961,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* คณะ & หอพัก */}
               <div className="flex gap-3">
                 <div className="flex-1">
                   <label className="text-xs font-semibold text-slate-500 ml-1">คณะ</label>
@@ -912,7 +972,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* ช่องทางติดต่อเพิ่มเติม */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 ml-1 flex items-center gap-1">
                   <Icon name="link" className="w-3.5 h-3.5" /> ช่องทางติดต่อเพิ่มเติม (IG, Line, ฯลฯ)
@@ -920,7 +979,6 @@ export default function App() {
                 <input type="text" value={myProfile.contact} onChange={e => setMyProfile({...myProfile, contact: e.target.value})} placeholder="เช่น IG: @your_name, Line ID: xx" className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
               </div>
 
-              {/* Bio แนะนำตัว */}
               <div>
                 <label className="text-xs font-semibold text-slate-500 ml-1">Bio (แนะนำตัว)</label>
                 <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="เขียนแนะนำตัวสั้นๆ..." />
@@ -950,7 +1008,6 @@ export default function App() {
 
       </main>
 
-      {/* Bottom Navigation */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
@@ -974,7 +1031,6 @@ export default function App() {
         </nav>
       </div>
 
-      {/* --- MODALS --- */}
       {showManual && (
         <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl">
