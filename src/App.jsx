@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, collection, addDoc, onSnapshot, 
-  query, orderBy, limit, serverTimestamp, setDoc, doc,
+  query, orderBy, limit, serverTimestamp, setDoc, doc, getDoc,
   enableIndexedDbPersistence, where, arrayUnion, deleteDoc,
   increment
 } from 'firebase/firestore';
@@ -82,6 +82,14 @@ const calculateAge = (dobString) => {
   return age;
 };
 
+// ฟังก์ชันสำหรับยิง Browser Notification
+const triggerSystemNotification = (title, body) => {
+  if (!("Notification" in window)) return;
+  if (Notification.permission === "granted") {
+    new Notification(title, { body, icon: CAT_MASCOT });
+  }
+};
+
 export default function App() {
   // --- States ---
   const [user, setUser] = useState(null);
@@ -131,6 +139,13 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const [reportText, setReportText] = useState('');
 
+  // ขอสิทธิ์ระบบแจ้งเตือนเมื่อเปิดเว็บครั้งแรก
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
@@ -148,6 +163,7 @@ export default function App() {
       if (myDoc) { setMyProfile(prev => ({ ...prev, ...myDoc })); setHasProfile(true); } 
       else { setMyProfile(DEFAULT_PROFILE); setHasProfile(false); setActiveTab('profile'); }
     });
+
     const unsubMatches = onSnapshot(query(collection(db, 'matches'), where('participants', 'array-contains', user.uid)), (snapshot) => {
         snapshot.docChanges().forEach((change) => {
           const data = change.doc.data();
@@ -155,15 +171,26 @@ export default function App() {
             const unread = data.unreadCounts?.[user.uid] || 0;
             if (unread > 0) {
               setToastMsg('มีข้อความใหม่จากเพื่อน!');
+              triggerSystemNotification('TINNTUU 🐾', 'คุณมีข้อความใหม่จากเพื่อนที่แมตช์!');
               setTimeout(() => setToastMsg(null), 3500);
             }
           }
         });
         setMatches(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
+
     const unsubGroups = onSnapshot(query(collection(db, 'group_chats')), (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          const data = change.doc.data();
+          if (change.type === "modified" && data.lastSender && data.lastSender !== user.uid) {
+            setToastMsg(`ข้อความใหม่ในกลุ่ม ${data.name || ''}`);
+            triggerSystemNotification(`TINNTUU (${data.name})`, 'มีข้อความใหม่ในกลุ่ม!');
+            setTimeout(() => setToastMsg(null), 3500);
+          }
+        });
         setGroupRooms(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
+
     return () => { unsubProfiles(); unsubMatches(); unsubGroups(); };
   }, [user]);
 
@@ -191,7 +218,7 @@ export default function App() {
     return () => unsub();
   }, [user, currentChatId, activeChatType]);
 
-  // ระบบ Auto-Read: เมื่อเปิดห้องแชททิ้งไว้ ข้อความใหม่ที่เข้ามาจะเคลียร์เป็นอ่านแล้วทันที
+  // ระบบ Auto-Read: อ่านข้อความทันทีเมื่อค้างในหน้าแชทนั้น
   useEffect(() => {
     if (!user || !currentChatId) return;
 
@@ -309,10 +336,11 @@ export default function App() {
     setDragDelta(0);
   };
 
-  // ฟังก์ชันส่งข้อความ (พร้อมเพิ่มตัวเลขอ่านค้างให้อีกฝ่ายทันทีทุกครั้งที่ส่ง)
+  // ฟังก์ชันส่งข้อความ - ดึงข้อมูลตรงจาก Firestore เพื่อความถูกต้อง 100%
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
+    
     await addDoc(collection(db, collectionPath), {
       text,
       imageUrl,
@@ -323,18 +351,24 @@ export default function App() {
     });
     
     if (activeChatType === 'private') {
-      const matchDoc = matches.find(m => m.id === currentChatId);
-      const otherUid = matchDoc?.participants?.find(uid => uid !== user.uid);
-      if (otherUid) {
-        await setDoc(doc(db, 'matches', currentChatId), { 
-          lastSender: user.uid,
-          [`unreadCounts.${otherUid}`]: increment(1)
-        }, { merge: true });
-      } else {
-        await setDoc(doc(db, 'matches', currentChatId), { lastSender: user.uid }, { merge: true });
+      try {
+        const matchSnap = await getDoc(doc(db, 'matches', currentChatId));
+        if (matchSnap.exists()) {
+          const participants = matchSnap.data().participants || [];
+          const otherUid = participants.find(uid => uid !== user.uid);
+          if (otherUid) {
+            await setDoc(doc(db, 'matches', currentChatId), { 
+              lastSender: user.uid,
+              [`unreadCounts.${otherUid}`]: increment(1)
+            }, { merge: true });
+          }
+        }
+      } catch (err) {
+        console.error("Error updating unread count:", err);
       }
     } else if (activeChatType === 'group_chat') {
       await setDoc(doc(db, 'group_chats', currentChatId), {
+        lastSender: user.uid,
         messageCount: increment(1)
       }, { merge: true });
     }
@@ -402,7 +436,8 @@ export default function App() {
       name: newRoomName.trim(), 
       createdBy: user.uid, 
       createdAt: serverTimestamp(),
-      messageCount: 0
+      messageCount: 0,
+      lastSender: ''
     });
     setNewRoomName('');
   };
@@ -533,7 +568,7 @@ export default function App() {
   return (
     <div className="max-w-md mx-auto min-h-screen bg-slate-50 flex flex-col font-sans pb-28 relative text-slate-800 overflow-x-hidden">
       
-      {/* Toast Notification */}
+      {/* Toast Notification บนหน้าจอ */}
       {toastMsg && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg text-sm flex items-center gap-2 animate-bounce">
           <Icon name="chat" className="w-4 h-4 text-red-400" /> {toastMsg}
@@ -1042,7 +1077,7 @@ export default function App() {
 
       </main>
 
-      {/* Navigation Bar ด้านล่างพร้อม Badge แสดงจำนวนข้อความ */}
+      {/* Navigation Bar ด้านล่างพร้อม Badge */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
