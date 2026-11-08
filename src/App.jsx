@@ -186,9 +186,16 @@ export default function App() {
     if (!user || !myProfile.name.trim()) return;
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        uid: user.uid, name: myProfile.name.trim(), faculty: myProfile.faculty || '', 
-        location: myProfile.location || '', bio: myProfile.bio || '', img: myProfile.img || '', 
-        tags: myProfile.tags || '', dob: myProfile.dob || '', contact: myProfile.contact || '', updatedAt: serverTimestamp()
+        uid: user.uid, 
+        name: myProfile.name.trim(), 
+        faculty: myProfile.faculty || '', 
+        location: myProfile.location || '', 
+        bio: myProfile.bio || '', 
+        img: myProfile.img || '', 
+        tags: myProfile.tags || '', 
+        dob: myProfile.dob || '', 
+        contact: myProfile.contact || '', 
+        updatedAt: serverTimestamp()
       }, { merge: true });
       await setDoc(doc(db, 'user_private', user.uid), { swiped: myProfile.swiped || [], schedule: myProfile.schedule || [] }, { merge: true });
       setHasProfile(true); setActiveTab('swipe');
@@ -364,6 +371,7 @@ export default function App() {
       </header>
 
       <main className="flex-1 overflow-y-auto px-5 pt-4">
+        {/* --- SWIPE TAB --- */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
             {currentProfile ? (
@@ -377,7 +385,15 @@ export default function App() {
                   <img src={currentProfile.img || CAT_MASCOT} className="w-full h-full object-cover pointer-events-none" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
                   <div className="absolute bottom-0 left-0 w-full p-6 text-white pointer-events-none">
-                    <h2 className="text-3xl font-bold mb-1">{currentProfile.name} {currentProfile.dob && <span className="font-medium text-xl ml-2 text-white/90">{calculateAge(currentProfile.dob)}</span>}</h2>
+                    <h2 className="text-3xl font-bold mb-1">
+                      {currentProfile.name} 
+                      {currentProfile.dob && <span className="font-medium text-xl ml-2 text-white/90">{calculateAge(currentProfile.dob)}</span>}
+                    </h2>
+                    {currentProfile.faculty && (
+                      <div className="flex items-center gap-1.5 text-xs text-white/80 mb-2">
+                        <Icon name="hat" className="w-4 h-4" /> {currentProfile.faculty}
+                      </div>
+                    )}
                     <p className="text-sm text-white/90 mb-4">{currentProfile.bio}</p>
                   </div>
                 </div>
@@ -396,6 +412,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- SCHEDULE TAB --- */}
         {activeTab === 'schedule' && (
           <div className="p-4 bg-white rounded-3xl min-h-[60vh] shadow-sm border border-slate-100">
              <h2 className="text-2xl font-bold text-slate-800 mb-4">ตารางเวลา</h2>
@@ -415,6 +432,7 @@ export default function App() {
           </div>
         )}
 
+        {/* --- PRACTICE TAB --- */}
         {activeTab === 'practice' && (
            <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[70vh] overflow-hidden">
              <div className="p-4 border-b flex gap-2 overflow-x-auto bg-slate-50">
@@ -453,15 +471,13 @@ export default function App() {
         {/* --- CHAT TAB --- */}
         {activeTab === 'chat' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 flex flex-col h-[75vh] overflow-hidden">
-            
-            {/* หากยังไม่ได้เลือกห้องแชท (แสดงหน้ารวมแชท) */}
             {!currentChatId ? (
               <div className="p-6 flex flex-col h-full">
                 <div className="flex justify-between items-center mb-6">
                   <h2 className="text-2xl font-bold text-slate-800">ข้อความ</h2>
                 </div>
 
-                {/* ช่องค้นหา */}
+                {/* ช่องค้นหาเพื่อน */}
                 <div className="relative mb-6">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <Icon name="search" className="w-5 h-5 text-slate-400" />
@@ -517,7 +533,6 @@ export default function App() {
                     )
                   ) : (
                     <div className="space-y-3">
-                      {/* ฟอร์มสร้างกลุ่มใหม่ */}
                       <form onSubmit={handleCreateGroup} className="flex gap-2 mb-4">
                         <input 
                           type="text" 
@@ -547,19 +562,16 @@ export default function App() {
                 </div>
               </div>
             ) : (
-              /* --- หน้าต่างในห้องแชท (ส่วนตัว หรือ กลุ่ม) --- */
               <div className="flex flex-col h-full bg-slate-50">
-                {/* Header ของห้องแชท */}
                 <div className="p-4 bg-white border-b flex items-center gap-3 shrink-0">
                   <button onClick={() => setCurrentChatId(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
-                    <Icon name="chevronLeft" className="w-6 h-6" /> {/* ไอคอนย้อนกลับ */}
+                    <Icon name="chevronLeft" className="w-6 h-6" />
                   </button>
                   <div className="font-bold text-slate-800">
                     {activeChatType === 'private' ? 'แชทส่วนตัว' : 'แชทกลุ่ม'}
                   </div>
                 </div>
 
-                {/* พื้นที่แสดงข้อความ */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {messages.map(msg => {
                     const isMe = msg.senderId === user.uid;
@@ -575,7 +587,6 @@ export default function App() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* ฟอร์มส่งข้อความ */}
                 <form onSubmit={sendMessage} className="p-3 bg-white border-t flex gap-2 shrink-0">
                   <input 
                     type="text" 
@@ -596,33 +607,75 @@ export default function App() {
         {/* --- PROFILE TAB --- */}
         {activeTab === 'profile' && (
           <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-             <div className="text-center mb-8">
+             <div className="text-center mb-6">
               <div className="relative w-28 h-28 mx-auto mb-4">
                 <img src={myProfile.img || CAT_MASCOT} className="w-full h-full rounded-full object-cover shadow-lg" />
-                <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-red-600 text-white w-9 h-9 rounded-full flex items-center justify-center"><Icon name="camera" className="w-4 h-4" /></button>
+                <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-red-600 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-lg"><Icon name="camera" className="w-4 h-4" /></button>
                 <input type="file" ref={fileInputRef} onChange={handleImageFileChange} className="hidden" />
               </div>
+              <h2 className="text-xl font-bold text-slate-800">{myProfile.name || 'โปรไฟล์ของคุณ'}</h2>
             </div>
             
             <form onSubmit={handleSaveProfile} className="space-y-4">
-              <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 border px-4 py-3 rounded-xl text-sm" placeholder="ชื่อ" required />
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1">ชื่อแสดงผล</label>
+                <input type="text" value={myProfile.name} onChange={e => setMyProfile({...myProfile, name: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" required />
+              </div>
+
+              {/* วันเกิด & อายุ */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">วัน/เดือน/ปีเกิด</label>
+                  <input type="date" value={myProfile.dob} onChange={e => setMyProfile({...myProfile, dob: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+                </div>
+                <div className="w-24">
+                  <label className="text-xs font-semibold text-slate-500 ml-1 text-center block">อายุ</label>
+                  <input type="text" value={calculateAge(myProfile.dob) ? `${calculateAge(myProfile.dob)} ปี` : ''} disabled className="w-full bg-slate-100 border border-slate-200 px-2 py-3 rounded-xl text-sm mt-1 text-center text-slate-600 font-semibold" placeholder="-" />
+                </div>
+              </div>
+
+              {/* คณะ & หอพัก */}
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">คณะ</label>
+                  <input type="text" value={myProfile.faculty} onChange={e => setMyProfile({...myProfile, faculty: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="คณะ..." />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold text-slate-500 ml-1">หอพัก/สถานที่</label>
+                  <input type="text" value={myProfile.location} onChange={e => setMyProfile({...myProfile, location: e.target.value})} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="สถานที่..." />
+                </div>
+              </div>
+
+              {/* ช่องทางติดต่อเพิ่มเติม */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1 flex items-center gap-1">
+                  <Icon name="link" className="w-3.5 h-3.5" /> ช่องทางติดต่อเพิ่มเติม (IG, Line, ฯลฯ)
+                </label>
+                <input type="text" value={myProfile.contact} onChange={e => setMyProfile({...myProfile, contact: e.target.value})} placeholder="เช่น IG: @your_name, Line ID: xx" className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-red-500/20" />
+              </div>
+
+              {/* Bio แนะนำตัว */}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 ml-1">Bio (แนะนำตัว)</label>
+                <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl text-sm mt-1 resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20" placeholder="เขียนแนะนำตัวสั้นๆ..." />
+              </div>
               
               <div className="pt-2 space-y-3">
-                <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3.5 rounded-xl">บันทึกข้อมูล</button>
-                <button type="button" onClick={() => signOut(auth)} className="w-full bg-slate-100 text-slate-700 font-semibold py-3.5 rounded-xl">ออกจากระบบ</button>
+                <button type="submit" className="w-full bg-red-600 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-red-500/20 hover:bg-red-700 transition-colors">บันทึกข้อมูล</button>
+                <button type="button" onClick={() => signOut(auth)} className="w-full bg-slate-100 text-slate-700 font-semibold py-3.5 rounded-xl hover:bg-slate-200 transition-colors">ออกจากระบบ</button>
               </div>
             </form>
 
             <div className="pt-6 mt-6 border-t border-slate-100 space-y-3">
-              <button type="button" onClick={() => setShowManual(true)} className="w-full bg-blue-50 text-blue-600 font-semibold py-3.5 rounded-xl border border-blue-100 flex items-center justify-center gap-2">
+              <button type="button" onClick={() => setShowManual(true)} className="w-full bg-blue-50 text-blue-600 font-semibold py-3.5 rounded-xl border border-blue-100 flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors">
                 <Icon name="help" className="w-5 h-5" /> คู่มือการใช้งาน
               </button>
               
-              <button type="button" onClick={() => setShowReport(true)} className="w-full bg-amber-50 text-amber-600 font-semibold py-3.5 rounded-xl border border-amber-100 flex items-center justify-center gap-2">
+              <button type="button" onClick={() => setShowReport(true)} className="w-full bg-amber-50 text-amber-600 font-semibold py-3.5 rounded-xl border border-amber-100 flex items-center justify-center gap-2 hover:bg-amber-100 transition-colors">
                 <Icon name="alert" className="w-5 h-5" /> แจ้งปัญหาการใช้งาน
               </button>
               
-              <button type="button" onClick={handleDeleteAccount} className="w-full text-red-500 font-semibold py-3.5 rounded-xl border border-red-200 bg-red-50">
+              <button type="button" onClick={handleDeleteAccount} className="w-full text-red-500 font-semibold py-3.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 transition-colors">
                 ลบบัญชีผู้ใช้
               </button>
             </div>
@@ -631,7 +684,7 @@ export default function App() {
 
       </main>
 
-      {/* Navigation Bar */}
+      {/* Bottom Navigation */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-[400px] px-4 z-40">
         <nav className="bg-white/90 backdrop-blur-xl rounded-full shadow-2xl flex justify-between p-2 px-4">
           {[ 
@@ -645,7 +698,6 @@ export default function App() {
               key={tab.id} 
               onClick={() => {
                 setActiveTab(tab.id);
-                // เมื่อเปลี่ยนหน้าแชท ให้รีเซ็ตห้องแชทเพื่อให้กลับไปหน้ารวมเสมอ
                 if (tab.id === 'chat') setCurrentChatId(null); 
               }} 
               className={`p-3 rounded-full transition-all duration-300 ${activeTab === tab.id ? 'bg-red-50 text-red-600 scale-110 shadow-sm' : 'text-slate-400'}`}
@@ -667,8 +719,8 @@ export default function App() {
               <p>🐾 <b>แท็บหาเพื่อน (Swipe):</b> ปัดขวาหรือกดหัวใจเพื่อ Match หากใจตรงกันจะได้แชทส่วนตัว ปัดซ้ายเพื่อข้าม</p>
               <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน เพื่อช่วยจัดสรรเวลา</p>
               <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หยอดเก่ง, กวนโอ๊ย)</p>
-              <p>💬 <b>แท็บแชท:</b> แบ่งเป็นแชทส่วนตัว (คนที่ Match) และสามารถสร้างห้องแชทกลุ่มชวนเพื่อนคุยได้</p>
-              <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
+              <p>💬 <b>แท็บแชท:</b> แบ่งเป็นแชทส่วนตัว (คนที่ Match) และสามารถสร้างห้องแชทกลุ่มชวนเพื่อนคุยได้ มีช่องค้นหารายชื่อเพื่อนด้วย</p>
+              <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่คณะ วันเกิด/อายุ ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
             </div>
             <button onClick={() => setShowManual(false)} className="mt-6 w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200">
               เข้าใจแล้ว
