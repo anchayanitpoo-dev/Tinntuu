@@ -72,14 +72,14 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2.5" }) => {
   );
 };
 
-// --- App Logo Component ---
+// --- App Logo Component (Red & Yellow Theme) ---
 const AppLogo = ({ className = "w-24 h-24" }) => (
   <svg className={className} viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="tinntuuGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#E63946" />
-        <stop offset="50%" stopColor="#FF4500" />
-        <stop offset="100%" stopColor="#FF7043" />
+        <stop offset="0%" stopColor="#DC2626" /> {/* red-600 */}
+        <stop offset="60%" stopColor="#EF4444" /> {/* red-500 */}
+        <stop offset="100%" stopColor="#FBBF24" /> {/* amber-400 (เหลือง) */}
       </linearGradient>
     </defs>
     
@@ -99,12 +99,12 @@ const AppLogo = ({ className = "w-24 h-24" }) => (
     
     <path d="M 15 82 Q 15 72 30 72 L 90 72 Q 105 72 105 82 L 105 100 Q 105 110 90 110 L 45 110 L 25 118 L 25 105 Q 15 102 15 82 Z" fill="#FFF" />
     
-    <circle cx="45" cy="91" r="6" fill="#E63946" />
-    <circle cx="60" cy="91" r="6" fill="#FF4500" />
-    <circle cx="75" cy="91" r="6" fill="#FF7043" />
+    <circle cx="45" cy="91" r="6" fill="#DC2626" /> {/* แดง */}
+    <circle cx="60" cy="91" r="6" fill="#EF4444" /> {/* แดงสว่าง */}
+    <circle cx="75" cy="91" r="6" fill="#FBBF24" /> {/* เหลือง */}
     
-    <circle cx="35" cy="72" r="8" fill="#FFF" stroke="#FF4500" strokeWidth="1" opacity="0.95" />
-    <circle cx="85" cy="72" r="8" fill="#FFF" stroke="#FF4500" strokeWidth="1" opacity="0.95" />
+    <circle cx="35" cy="72" r="8" fill="#FFF" stroke="#DC2626" strokeWidth="1" opacity="0.95" />
+    <circle cx="85" cy="72" r="8" fill="#FFF" stroke="#DC2626" strokeWidth="1" opacity="0.95" />
   </svg>
 );
 
@@ -459,7 +459,7 @@ export default function App() {
   };
 
   if (authLoading) return (
-    <div className="min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] text-white flex flex-col items-center justify-center font-bold gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-red-600 via-red-500 to-yellow-400 text-white flex flex-col items-center justify-center font-bold gap-4">
       <div className="animate-bounce">
         <AppLogo className="w-24 h-24 border-2 border-white rounded-[30px] shadow-[4px_4px_0px_0px_rgba(0,0,0,0.3)]" />
       </div>
@@ -471,7 +471,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
+      <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-red-600 via-red-500 to-yellow-400 flex flex-col justify-center items-center p-6 font-sans relative overflow-hidden">
         <div className="absolute -top-12 -left-12 w-48 h-48 bg-white/10 rounded-full blur-2xl"></div>
         <div className="absolute -bottom-16 -right-16 w-64 h-64 bg-black/10 rounded-full blur-3xl"></div>
         <div className="bg-white/95 backdrop-blur-md w-full rounded-[3rem] p-8 shadow-2xl border-4 border-black relative z-10">
@@ -480,18 +480,18 @@ export default function App() {
               <AppLogo className="w-32 h-32 border-4 border-black rounded-[34px] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] bg-white" />
             </div>
             <h1 className="text-4xl font-black text-black tracking-tight flex items-center justify-center gap-2">
-              TINNTUU <Icon name="paw" className="w-7 h-7 text-[#FF4500] mt-1" />
+              TINNTUU <Icon name="paw" className="w-7 h-7 text-red-600 mt-1" />
             </h1>
-            <p className="text-[11px] text-[#FF4500] font-extrabold uppercase tracking-widest mt-1">Cat Speech Assistant TU Social</p>
+            <p className="text-[11px] text-red-600 font-extrabold uppercase tracking-widest mt-1">Cat Speech Assistant TU Social</p>
           </div>
           <form onSubmit={handleAuth} className="space-y-3">
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="อีเมล (TU Email)" required />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-slate-100 border-2 border-slate-900 px-5 py-3.5 rounded-3xl font-bold text-slate-800 focus:outline-none focus:bg-white" placeholder="รหัสผ่าน" required />
-            <button type="submit" className="w-full bg-[#FF4500] hover:bg-[#E63946] text-white font-black py-4 rounded-3xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all mt-4 text-base flex items-center justify-center gap-2">
+            <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-4 rounded-3xl border-2 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all mt-4 text-base flex items-center justify-center gap-2">
               {isLoginMode ? <>เข้าสู่ระบบ <Icon name="paw" className="w-5 h-5" /></> : <>สร้างบัญชีทาสแมว <Icon name="cat" className="w-5 h-5" /></>}
             </button>
           </form>
-          <button onClick={() => setIsLoginMode(!isLoginMode)} className="w-full text-center text-xs text-slate-600 font-extrabold mt-5 underline hover:text-[#FF4500] flex items-center justify-center gap-1">
+          <button onClick={() => setIsLoginMode(!isLoginMode)} className="w-full text-center text-xs text-slate-600 font-extrabold mt-5 underline hover:text-red-600 flex items-center justify-center gap-1">
             {isLoginMode ? <>ยังไม่มีบัญชี? สมัครที่นี่เมี๊ยว <Icon name="paw" className="w-4 h-4" /></> : 'มีบัญชีแล้ว? เข้าสู่ระบบ'}
           </button>
         </div>
@@ -515,14 +515,14 @@ export default function App() {
   );
 
   return (
-    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-[#E63946] via-[#FF4500] to-[#FF7043] flex flex-col font-sans pb-[90px] relative text-slate-900 overflow-x-hidden">
+    <div className="max-w-md mx-auto min-h-screen bg-gradient-to-br from-red-600 via-red-500 to-yellow-400 flex flex-col font-sans pb-[90px] relative text-slate-900 overflow-x-hidden">
       
-      <header className="px-5 py-4 flex justify-between items-center sticky top-0 z-40 bg-gradient-to-r from-[#E63946] to-[#FF4500] border-b-2 border-black/20 shadow-md">
+      <header className="px-5 py-4 flex justify-between items-center sticky top-0 z-40 bg-gradient-to-r from-red-700 to-red-500 border-b-2 border-black/20 shadow-md">
         <h1 className="text-2xl font-black text-white flex items-center gap-2 drop-shadow-[2px_2px_0px_rgba(0,0,0,0.5)]">
           TINNTUU <Icon name="cat" className="w-6 h-6" strokeWidth="2.5" />
         </h1>
         <div className="flex gap-2">
-          <button onClick={() => setShowManual(true)} className="bg-amber-300 text-black px-2.5 py-1.5 rounded-full text-[10px] font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform flex items-center gap-1">
+          <button onClick={() => setShowManual(true)} className="bg-yellow-300 text-black px-2.5 py-1.5 rounded-full text-[10px] font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform flex items-center gap-1">
             <Icon name="book" className="w-3 h-3" /> คู่มือ
           </button>
           <button onClick={() => setShowReport(true)} className="bg-white text-black px-2.5 py-1.5 rounded-full text-[10px] font-black border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:scale-105 transition-transform flex items-center gap-1">
@@ -532,10 +532,10 @@ export default function App() {
       </header>
 
       {toastMsg && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-black text-amber-300 px-6 py-3 rounded-full text-xs font-black shadow-2xl z-[100] border-2 border-white animate-bounce flex items-center gap-2">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-black text-yellow-300 px-6 py-3 rounded-full text-xs font-black shadow-2xl z-[100] border-2 border-white animate-bounce flex items-center gap-2">
           <Icon name={toastMsg.includes('กลุ่ม') ? 'users' : 'chat'} className="w-4 h-4" />
           <span>{toastMsg}</span>
-          <button onClick={() => setToastMsg(null)} className="ml-2 text-white hover:text-amber-300">
+          <button onClick={() => setToastMsg(null)} className="ml-2 text-white hover:text-yellow-300">
             <Icon name="x" className="w-4 h-4" />
           </button>
         </div>
@@ -546,7 +546,7 @@ export default function App() {
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[2.5rem] p-4 flex gap-3 overflow-x-auto scrollbar-hide border-3 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
               <div className="flex flex-col items-center gap-1 min-w-[65px]">
-                <div className="w-14 h-14 bg-gradient-to-br from-amber-300 to-orange-400 rounded-2xl border-2 border-black flex items-center justify-center text-black shadow-sm">
+                <div className="w-14 h-14 bg-gradient-to-br from-yellow-300 to-yellow-500 rounded-2xl border-2 border-black flex items-center justify-center text-black shadow-sm">
                   <Icon name="chat" className="w-6 h-6" />
                 </div>
                 <span className="text-[9px] font-black text-slate-700">แมตช์ใหม่</span>
@@ -557,7 +557,7 @@ export default function App() {
                   const targetMatch = matches.find(m => m.participants.includes(otherUid));
                   return (
                     <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); setActiveTab('chat'); }} className="flex flex-col items-center gap-1 min-w-[65px] cursor-pointer hover:scale-105 transition-transform">
-                      <img src={otherProfile.img} className="w-14 h-14 rounded-2xl object-cover border-2 border-black p-0.5 shadow-sm bg-amber-100" />
+                      <img src={otherProfile.img} className="w-14 h-14 rounded-2xl object-cover border-2 border-black p-0.5 shadow-sm bg-yellow-100" />
                       <span className="text-[9px] font-black text-slate-800 truncate w-full text-center">{otherProfile.name.split(' ')[0]}</span>
                     </div>
                   )
@@ -591,7 +591,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className="absolute top-6 right-6 bg-amber-300 border-2 border-black text-black text-[10px] px-3.5 py-1.5 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] pointer-events-none flex items-center gap-1">
+                <div className="absolute top-6 right-6 bg-yellow-300 border-2 border-black text-black text-[10px] px-3.5 py-1.5 rounded-full font-black z-10 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] pointer-events-none flex items-center gap-1">
                   <Icon name="location" className="w-3 h-3" /> {currentProfile.location}
                 </div>
                 <div className="w-full h-[360px] rounded-[2.5rem] border-2 border-black overflow-hidden mb-4 bg-slate-100 pointer-events-none">
@@ -599,7 +599,7 @@ export default function App() {
                 </div>
                 <div className="px-2 pointer-events-none">
                   <h2 className="text-2xl font-black text-black flex items-center gap-2">
-                    {currentProfile.name} <Icon name="paw" className="w-5 h-5 text-[#FF4500]" />
+                    {currentProfile.name} <Icon name="paw" className="w-5 h-5 text-red-600" />
                   </h2>
                   <p className="text-xs text-slate-600 font-bold mt-1 mb-4">{currentProfile.bio}</p>
                   
@@ -607,7 +607,7 @@ export default function App() {
                     <span className="bg-slate-100 border-2 border-black text-black font-black text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                       <Icon name="hat" className="w-3 h-3" /> {currentProfile.faculty}
                     </span>
-                    <span className="bg-orange-100 border-2 border-black text-[#FF4500] font-black text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
+                    <span className="bg-red-100 border-2 border-black text-red-600 font-black text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                       <Icon name="tag" className="w-3 h-3" /> {currentProfile.tags}
                     </span>
                   </div>
@@ -617,7 +617,7 @@ export default function App() {
                   <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="flex-1 py-3.5 bg-slate-200 text-slate-700 border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex justify-center items-center gap-1">
                     ข้ามไปก่อน (Skip) <Icon name="cat" className="w-4 h-4" />
                   </button>
-                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="flex-1 py-3.5 bg-[#FF4500] hover:bg-[#E63946] text-white border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex justify-center items-center gap-1">
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="flex-1 py-3.5 bg-red-600 hover:bg-red-700 text-white border-2 border-black rounded-3xl font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none transition-all flex justify-center items-center gap-1">
                     ถูกใจ (Match) <Icon name="heart" className="w-4 h-4" />
                   </button>
                 </div>
@@ -638,10 +638,10 @@ export default function App() {
           <div className="flex flex-col gap-4 h-full">
             <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] text-slate-900">
               <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-black">
-                ตารางนัดหมาย <Icon name="calendar" className="w-6 h-6 text-[#FF4500]" />
+                ตารางนัดหมาย <Icon name="calendar" className="w-6 h-6 text-red-600" />
               </h2>
               
-              <form onSubmit={handleAddEvent} className="bg-orange-50 rounded-[2rem] p-4 border-2 border-black mb-6 flex flex-col gap-3">
+              <form onSubmit={handleAddEvent} className="bg-yellow-50 rounded-[2rem] p-4 border-2 border-black mb-6 flex flex-col gap-3">
                 <h3 className="font-black text-xs text-black flex items-center gap-1">
                   <Icon name="plus" className="w-3 h-3" /> เพิ่มนัดหมายทาสแมว
                 </h3>
@@ -650,7 +650,7 @@ export default function App() {
                     <input type="time" value={newEvent.time} onChange={e=>setNewEvent({...newEvent, time: e.target.value})} className="w-24 bg-white border-2 border-black px-3 py-2 rounded-2xl text-xs font-bold outline-none" />
                 </div>
                 <input type="text" value={newEvent.title} onChange={e=>setNewEvent({...newEvent, title: e.target.value})} placeholder="ชื่อกิจกรรม (เช่น นัดกินชาบู)" className="bg-white border-2 border-black px-3 py-2 rounded-2xl text-xs font-bold outline-none" required/>
-                <button type="submit" className="bg-[#FF4500] text-white py-2.5 rounded-2xl border-2 border-black font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none flex justify-center items-center gap-2">
+                <button type="submit" className="bg-red-600 text-white py-2.5 rounded-2xl border-2 border-black font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-0.5 active:translate-y-0.5 active:shadow-none flex justify-center items-center gap-2">
                   บันทึกลงปฏิทิน <Icon name="paw" className="w-4 h-4" />
                 </button>
               </form>
@@ -662,7 +662,7 @@ export default function App() {
                 ) : (
                     myProfile.schedule.map((event, idx) => (
                         <div key={idx} className="bg-amber-50 border-2 border-black rounded-2xl p-3.5 flex items-center gap-4 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
-                            <div className="bg-[#FF4500] text-white w-12 h-12 rounded-xl border-2 border-black flex flex-col items-center justify-center shadow-sm">
+                            <div className="bg-red-600 text-white w-12 h-12 rounded-xl border-2 border-black flex flex-col items-center justify-center shadow-sm">
                                 <span className="text-[9px] font-black">{new Date(event.date).toLocaleDateString('th-TH', { month: 'short'})}</span>
                                 <span className="text-sm font-black">{new Date(event.date).getDate()}</span>
                             </div>
@@ -681,12 +681,12 @@ export default function App() {
         {activeTab === 'chat' && (
             <div className="bg-white rounded-[3rem] border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden flex flex-col h-[calc(100vh-180px)] relative">
                 <div className="flex p-2 bg-slate-100 border-b-2 border-black gap-2">
-                    <button onClick={() => setActiveChatType('list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'list' || activeChatType === 'private' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>คุยส่วนตัว</button>
-                    <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>ห้องกลุ่ม</button>
+                    <button onClick={() => setActiveChatType('list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'list' || activeChatType === 'private' ? 'bg-red-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>คุยส่วนตัว</button>
+                    <button onClick={() => setActiveChatType('group_list')} className={`flex-1 py-2.5 rounded-full text-xs font-black border-2 border-black transition-all ${activeChatType === 'group_list' || activeChatType === 'group_chat' ? 'bg-red-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-white text-black'}`}>ห้องกลุ่ม</button>
                 </div>
 
                 {(activeChatType === 'list' || activeChatType === 'group_list') && (
-                  <div className="p-3 bg-amber-50 border-b-2 border-black flex gap-2 items-center">
+                  <div className="p-3 bg-yellow-50 border-b-2 border-black flex gap-2 items-center">
                     <div className="relative flex-1">
                       <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
                         <Icon name="search" className="w-4 h-4" />
@@ -717,8 +717,8 @@ export default function App() {
                             const targetMatch = matches.find(m => m.participants.includes(otherUid));
                             const unreadCount = targetMatch?.[`unread_${user.uid}`] || 0;
                             return (
-                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-orange-100 transition-colors border-b-2 border-slate-100 relative">
-                                    <img src={otherProfile.img} className="w-12 h-12 rounded-2xl object-cover border-2 border-black shadow-sm bg-amber-100" />
+                                <div key={otherUid} onClick={() => { setCurrentChatId(targetMatch.id); setActiveChatType('private'); }} className="flex items-center gap-4 p-3 rounded-2xl cursor-pointer hover:bg-yellow-100 transition-colors border-b-2 border-slate-100 relative">
+                                    <img src={otherProfile.img} className="w-12 h-12 rounded-2xl object-cover border-2 border-black shadow-sm bg-yellow-100" />
                                     <div className="flex flex-col flex-1 truncate">
                                       <span className="font-black text-sm text-black truncate">{otherProfile.name}</span>
                                       <span className="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1">
@@ -740,7 +740,7 @@ export default function App() {
                     <div className="p-4 flex-1 overflow-y-auto flex flex-col">
                         <div className="flex gap-2 mb-4">
                             <input value={newRoomName} onChange={e=>setNewRoomName(e.target.value)} placeholder="ชื่อห้องกลุ่ม" className="bg-slate-100 border-2 border-black px-4 py-2.5 rounded-full text-xs flex-1 outline-none font-bold text-black" />
-                            <button type="button" onClick={createGroupRoom} className="bg-[#FF4500] text-white border-2 border-black px-5 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">สร้าง</button>
+                            <button type="button" onClick={createGroupRoom} className="bg-red-600 text-white border-2 border-black px-5 rounded-full text-xs font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">สร้าง</button>
                         </div>
                         <div className="flex-1 space-y-3">
                             {filteredGroupRooms.length === 0 && chatSearchQuery && <div className="text-center text-slate-400 mt-6 text-xs font-black">ไม่พบห้องกลุ่มชื่อ "{chatSearchQuery}"</div>}
@@ -748,7 +748,7 @@ export default function App() {
                                 <div key={room.id} className="border-2 border-black bg-amber-50 p-3.5 rounded-2xl shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                                     <div className="flex justify-between items-center">
                                         <h4 className="font-black text-black text-sm">{room.room_name}</h4>
-                                        <button onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="bg-[#FF4500] flex items-center gap-1 text-white font-black border border-black text-[10px] px-3 py-1.5 rounded-full">
+                                        <button onClick={() => { setCurrentChatId(room.id); setActiveChatType('group_chat'); }} className="bg-red-600 flex items-center gap-1 text-white font-black border border-black text-[10px] px-3 py-1.5 rounded-full">
                                           เข้าห้อง <Icon name="paw" className="w-3 h-3" />
                                         </button>
                                     </div>
@@ -761,10 +761,10 @@ export default function App() {
                 {(activeChatType === 'private' || activeChatType === 'group_chat') && (
                     <div className="flex flex-col h-full bg-slate-50 absolute inset-0 z-20 rounded-[3rem] overflow-hidden">
                         <div className="p-4 bg-white flex items-center justify-between border-b-2 border-black z-30">
-                            <button onClick={() => setActiveChatType(activeChatType === 'private' ? 'list' : 'group_list')} className="text-black font-black hover:text-[#FF4500]">
+                            <button onClick={() => setActiveChatType(activeChatType === 'private' ? 'list' : 'group_list')} className="text-black font-black hover:text-red-600">
                               <Icon name="chevron_left" className="w-6 h-6" />
                             </button>
-                            <span className="font-black text-sm text-[#FF4500] flex items-center gap-1">
+                            <span className="font-black text-sm text-red-600 flex items-center gap-1">
                               {activeChatType === 'private' ? <>คุยส่วนตัว <Icon name="paw" className="w-4 h-4" /></> : <>แชทกลุ่ม <Icon name="users" className="w-4 h-4" /></>}
                             </span>
                             <Icon name="cat" className="w-6 h-6 text-black" strokeWidth="2.5" />
@@ -772,7 +772,7 @@ export default function App() {
                         
                         <div className="flex-1 p-4 overflow-y-auto flex flex-col gap-3 z-10 pb-4">
                             {messages.map(m => (
-                                <div key={m.id} className={`max-w-[78%] p-3 text-xs font-bold rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${m.senderId === user.uid ? 'bg-[#FF4500] text-white self-end rounded-br-none' : 'bg-white text-black self-start rounded-bl-none'}`}>
+                                <div key={m.id} className={`max-w-[78%] p-3 text-xs font-bold rounded-2xl border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] ${m.senderId === user.uid ? 'bg-red-600 text-white self-end rounded-br-none' : 'bg-white text-black self-start rounded-bl-none'}`}>
                                     {activeChatType === 'group_chat' && m.senderId !== user.uid && <div className="text-[9px] font-black text-amber-500 mb-0.5">{m.senderName}</div>}
                                     {m.text}
                                 </div>
@@ -780,18 +780,18 @@ export default function App() {
                             <div ref={messagesEndRef} />
                         </div>
 
-                        <div className="px-3 py-1.5 bg-amber-100 border-t-2 border-black flex justify-between items-center z-30">
+                        <div className="px-3 py-1.5 bg-yellow-100 border-t-2 border-black flex justify-between items-center z-30">
                             <span className="text-[10px] font-black text-black flex items-center gap-1">
                               <Icon name="bulb" className="w-3 h-3" /> นึกคำตอบไม่ออก?
                             </span>
-                            <button onClick={handleSmartReply} type="button" className="bg-white text-[#FF4500] flex items-center gap-1 border border-black px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm">
+                            <button onClick={handleSmartReply} type="button" className="bg-white text-red-600 flex items-center gap-1 border border-black px-3 py-0.5 rounded-full text-[10px] font-black shadow-sm">
                               สุ่มคำตอบเมี๊ยว <Icon name="paw" className="w-3 h-3" />
                             </button>
                         </div>
 
                         <form onSubmit={sendMessage} className="p-3 pb-24 bg-white flex gap-2 items-center border-t-2 border-black z-30">
                             <input value={inputText} onChange={e=>setInputText(e.target.value)} className="flex-1 bg-slate-100 border-2 border-black px-4 py-3 rounded-full text-xs font-bold text-black focus:outline-none" placeholder="พิมพ์ข้อความ..." />
-                            <button type="submit" disabled={!inputText.trim()} className="bg-[#FF4500] border-2 border-black disabled:opacity-50 text-white w-10 h-10 rounded-full flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                            <button type="submit" disabled={!inputText.trim()} className="bg-red-600 border-2 border-black disabled:opacity-50 text-white w-10 h-10 rounded-full flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                               <Icon name="send" className="w-5 h-5" />
                             </button>
                         </form>
@@ -804,7 +804,7 @@ export default function App() {
           <div className="flex flex-col gap-4">
             <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)]">
               <div className="text-center mb-4">
-                <div className="flex justify-center gap-2 mb-3 text-[#FF4500]">
+                <div className="flex justify-center gap-2 mb-3 text-red-600">
                   <Icon name="cat" className="w-12 h-12" />
                   <Icon name="mic" className="w-12 h-12" />
                 </div>
@@ -812,7 +812,7 @@ export default function App() {
                 <p className="text-[10px] font-bold text-slate-500 mt-1">ตัวช่วยสลายความเกร็งสำหรับคนนึกคำชวนคุยไม่ออก</p>
               </div>
 
-              <div className="bg-amber-100 border-2 border-black p-3.5 rounded-2xl mb-5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+              <div className="bg-yellow-100 border-2 border-black p-3.5 rounded-2xl mb-5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                 <h3 className="text-xs font-black text-black mb-2 flex items-center gap-1">
                   <Icon name="target" className="w-4 h-4 text-black" strokeWidth="3" /> ภารกิจฝึกคุยประจำวัน
                 </h3>
@@ -839,7 +839,7 @@ export default function App() {
                     <button 
                       key={vibe.id} 
                       onClick={() => setCatVibe(vibe.id)}
-                      className={`flex-1 py-2 rounded-full text-[10px] font-black border-2 border-black transition-all ${catVibe === vibe.id ? 'bg-[#FF4500] text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-100 text-black'}`}
+                      className={`flex-1 py-2 rounded-full text-[10px] font-black border-2 border-black transition-all ${catVibe === vibe.id ? 'bg-red-600 text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]' : 'bg-slate-100 text-black'}`}
                     >
                       {vibe.label}
                     </button>
@@ -850,8 +850,8 @@ export default function App() {
               <div className="mb-4">
                 <label className="text-[10px] font-black text-black block mb-1">เลือกหมวดหมู่ที่อยากชวนคุย:</label>
                 <div className="grid grid-cols-3 gap-2">
-                  <button onClick={() => generateCategoryQuestion('food')} className="bg-orange-100 hover:bg-orange-200 flex flex-col items-center justify-center gap-1 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">
-                    <Icon name="food" className="w-5 h-5 text-orange-600" /> ของกินเชียงราก
+                  <button onClick={() => generateCategoryQuestion('food')} className="bg-yellow-100 hover:bg-yellow-200 flex flex-col items-center justify-center gap-1 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">
+                    <Icon name="food" className="w-5 h-5 text-yellow-600" /> ของกินเชียงราก
                   </button>
                   <button onClick={() => generateCategoryQuestion('study')} className="bg-amber-100 hover:bg-amber-200 flex flex-col items-center justify-center gap-1 border-2 border-black p-2 rounded-2xl text-[10px] font-black text-black">
                     <Icon name="book_open" className="w-5 h-5 text-amber-600" /> เรื่องเรียน/สอบ
@@ -875,10 +875,10 @@ export default function App() {
           <div className="bg-white rounded-[3rem] p-6 border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] pb-8">
             <div className="text-center mb-6 border-b-2 border-black pb-6">
               <div className="relative w-28 h-28 mx-auto mb-3">
-                <div className="w-full h-full bg-amber-100 rounded-3xl overflow-hidden border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
+                <div className="w-full h-full bg-yellow-100 rounded-3xl overflow-hidden border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">
                   <img src={myProfile.img || CAT_MASCOT} className="w-full h-full object-cover" />
                 </div>
-                <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-[#FF4500] text-white w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs font-black shadow-md">
+                <button type="button" onClick={() => fileInputRef.current.click()} className="absolute bottom-0 right-0 bg-red-600 text-white w-8 h-8 rounded-full border-2 border-black flex items-center justify-center text-xs font-black shadow-md">
                   <Icon name="camera" className="w-4 h-4" />
                 </button>
               </div>
@@ -896,7 +896,7 @@ export default function App() {
                 </div>
                 <textarea value={myProfile.bio} onChange={e => setMyProfile({...myProfile, bio: e.target.value})} rows={2} className="w-full bg-slate-50 border-2 border-black px-4 py-3 rounded-2xl outline-none resize-none text-black" placeholder="Bio สั้นๆ" />
                 
-                <button type="submit" className="bg-[#FF4500] text-white border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-3 flex justify-center items-center gap-2">
+                <button type="submit" className="bg-red-600 text-white border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] mt-3 flex justify-center items-center gap-2">
                   บันทึกตัวตน <Icon name="paw" className="w-4 h-4" />
                 </button>
                 <button type="button" onClick={() => signOut(auth)} className="bg-slate-200 text-black border-2 border-black py-3.5 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">ออกจากระบบ</button>
@@ -911,7 +911,7 @@ export default function App() {
       {showManual && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-[2rem] p-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full relative">
-            <button onClick={() => setShowManual(false)} className="absolute top-4 right-4 text-black hover:text-[#FF4500] font-black text-xl">
+            <button onClick={() => setShowManual(false)} className="absolute top-4 right-4 text-black hover:text-red-600 font-black text-xl">
               <Icon name="x" className="w-6 h-6" />
             </button>
             <h2 className="text-xl font-black mb-4 flex items-center gap-2">
@@ -920,28 +920,28 @@ export default function App() {
             
             <div className="space-y-4 text-xs font-bold text-slate-800">
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl flex items-start gap-3">
-                <Icon name="paw" className="w-5 h-5 mt-0.5 text-[#FF4500]" />
+                <Icon name="paw" className="w-5 h-5 mt-0.5 text-red-600" />
                 <div>
                   <p className="font-black text-black mb-1">หาเพื่อน (Swipe)</p>
                   <p className="text-[10px]">เลื่อนกาดไปทางซ้ายเพื่อข้าม เลื่อนไปทางขวาเพื่อส่งใจ หากใจตรงกันจะได้เริ่มแชทเลย!</p>
                 </div>
               </div>
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl flex items-start gap-3">
-                <Icon name="calendar" className="w-5 h-5 mt-0.5 text-[#FF4500]" />
+                <Icon name="calendar" className="w-5 h-5 mt-0.5 text-red-600" />
                 <div>
                   <p className="font-black text-black mb-1">นัดหมาย (Schedule)</p>
                   <p className="text-[10px]">จดบันทึกตารางนัดเจอเพื่อน กินข้าว อ่านหนังสือ มีแจ้งเตือนกิจกรรม</p>
                 </div>
               </div>
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl flex items-start gap-3">
-                <Icon name="chat" className="w-5 h-5 mt-0.5 text-[#FF4500]" />
+                <Icon name="chat" className="w-5 h-5 mt-0.5 text-red-600" />
                 <div>
                   <p className="font-black text-black mb-1">แชท (Chat)</p>
                   <p className="text-[10px]">คุยกับเพื่อนที่แมตช์ได้ หรือจะสร้างห้องคุยเป็นกลุ่มก็สบาย</p>
                 </div>
               </div>
               <div className="bg-slate-50 border-2 border-black p-3 rounded-xl flex items-start gap-3">
-                <Icon name="mic" className="w-5 h-5 mt-0.5 text-[#FF4500]" />
+                <Icon name="mic" className="w-5 h-5 mt-0.5 text-red-600" />
                 <div>
                   <p className="font-black text-black mb-1">ฝึกคุย (Practice)</p>
                   <p className="text-[10px]">ให้ AI บอทแมวช่วยเสนอไอเดียประโยคทักทาย ลดความเกร็ง</p>
@@ -949,7 +949,7 @@ export default function App() {
               </div>
             </div>
             
-            <button onClick={() => setShowManual(false)} className="w-full mt-6 bg-[#FF4500] text-white border-2 border-black py-3 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center justify-center gap-2">
+            <button onClick={() => setShowManual(false)} className="w-full mt-6 bg-red-600 text-white border-2 border-black py-3 rounded-full font-black text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none flex items-center justify-center gap-2">
               เข้าใจแล้วเมี๊ยว! <Icon name="paw" className="w-4 h-4" />
             </button>
           </div>
@@ -960,7 +960,7 @@ export default function App() {
       {showReport && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-[2rem] p-6 border-4 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] max-w-sm w-full relative">
-            <button onClick={() => setShowReport(false)} className="absolute top-4 right-4 text-black hover:text-[#FF4500] font-black text-xl">
+            <button onClick={() => setShowReport(false)} className="absolute top-4 right-4 text-black hover:text-red-600 font-black text-xl">
               <Icon name="x" className="w-6 h-6" />
             </button>
             <h2 className="text-xl font-black mb-2 flex items-center gap-2">
@@ -1000,7 +1000,7 @@ export default function App() {
             <button 
               key={tab.id} 
               onClick={() => setActiveTab(tab.id)} 
-              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-full border-2 transition-all ${activeTab === tab.id ? 'bg-[#FF4500] text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-105' : 'border-transparent text-slate-500'}`}
+              className={`flex-1 flex flex-col items-center justify-center py-2 rounded-full border-2 transition-all ${activeTab === tab.id ? 'bg-red-600 text-white border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] scale-105' : 'border-transparent text-slate-500'}`}
             >
               <span className="mb-0.5">
                 <Icon name={tab.icon} className="w-5 h-5" strokeWidth={activeTab === tab.id ? "3" : "2"} />
