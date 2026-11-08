@@ -316,11 +316,13 @@ export default function App() {
   const openPrivateChat = (matchInfo, otherProfile) => {
     setCurrentChatId(matchInfo.id);
     setActiveChatType('private');
+    setActiveTab('chat');
   };
 
   const openGroupChat = (room) => {
     setCurrentChatId(room.id);
     setActiveChatType('group_chat');
+    setActiveTab('chat');
   };
 
   const othersProfiles = allProfiles.filter(p => p.uid !== user?.uid && !localSwiped.includes(p.uid));
@@ -374,8 +376,38 @@ export default function App() {
         {/* --- SWIPE TAB --- */}
         {activeTab === 'swipe' && (
           <div className="flex flex-col h-full gap-4">
+            
+            {/* สตอรี่หน้าแรก (Matches Story Bar) */}
+            <div className="bg-white rounded-3xl p-3 flex gap-4 overflow-x-auto shadow-sm border border-slate-100 scrollbar-none">
+              <div className="flex flex-col items-center gap-1 min-w-[60px]">
+                <div className="w-14 h-14 bg-red-50 rounded-full border-2 border-dashed border-red-300 flex items-center justify-center text-red-500 shadow-sm">
+                  <Icon name="heart" className="w-6 h-6" />
+                </div>
+                <span className="text-[10px] font-semibold text-slate-500">แมตช์ใหม่</span>
+              </div>
+              
+              {uniqueMatches.map(otherUid => {
+                const profile = allProfiles.find(p => p.uid === otherUid);
+                const matchDoc = matches.find(m => m.participants.includes(otherUid));
+                if (!profile || !matchDoc) return null;
+                return (
+                  <div 
+                    key={otherUid} 
+                    onClick={() => openPrivateChat(matchDoc, profile)} 
+                    className="flex flex-col items-center gap-1 min-w-[60px] cursor-pointer hover:scale-105 transition-transform"
+                  >
+                    <div className="w-14 h-14 rounded-full p-[2px] bg-gradient-to-tr from-amber-400 via-red-500 to-red-600 shadow-sm">
+                      <img src={profile.img || CAT_MASCOT} className="w-full h-full rounded-full object-cover border-2 border-white" />
+                    </div>
+                    <span className="text-[10px] font-semibold text-slate-700 truncate w-full text-center max-w-[60px]">{profile.name.split(' ')[0]}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* การ์ดปัดเพื่อน */}
             {currentProfile ? (
-              <div className="relative w-full h-[58vh] rounded-[2rem] overflow-hidden shadow-2xl bg-white">
+              <div className="relative w-full h-[54vh] rounded-[2rem] overflow-hidden shadow-2xl bg-white">
                 <div 
                   className="absolute inset-0 w-full h-full cursor-grab touch-none z-20"
                   style={{ transform: `translateX(${dragDelta}px) rotate(${dragDelta * 0.05}deg)`, transition: isDragging ? 'none' : 'transform 0.4s' }}
@@ -383,30 +415,42 @@ export default function App() {
                   onMouseDown={handleDragStart} onMouseMove={handleDragMove} onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}
                 >
                   <img src={currentProfile.img || CAT_MASCOT} className="w-full h-full object-cover pointer-events-none" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent pointer-events-none"></div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
+                  
+                  {currentProfile.location && (
+                    <div className="absolute top-4 left-4 bg-white/20 backdrop-blur-md text-white text-xs px-3 py-1.5 rounded-full font-medium flex items-center gap-1">
+                      <Icon name="location" className="w-3.5 h-3.5" /> {currentProfile.location}
+                    </div>
+                  )}
+
                   <div className="absolute bottom-0 left-0 w-full p-6 text-white pointer-events-none">
                     <h2 className="text-3xl font-bold mb-1">
                       {currentProfile.name} 
                       {currentProfile.dob && <span className="font-medium text-xl ml-2 text-white/90">{calculateAge(currentProfile.dob)}</span>}
                     </h2>
                     {currentProfile.faculty && (
-                      <div className="flex items-center gap-1.5 text-xs text-white/80 mb-2">
-                        <Icon name="hat" className="w-4 h-4" /> {currentProfile.faculty}
+                      <div className="flex items-center gap-1.5 text-xs text-white/80 mb-2 font-medium">
+                        <Icon name="hat" className="w-4 h-4" /> คณะ{currentProfile.faculty}
                       </div>
                     )}
-                    <p className="text-sm text-white/90 mb-4">{currentProfile.bio}</p>
+                    <p className="text-sm text-white/90 mb-2 line-clamp-2">{currentProfile.bio}</p>
+                    {currentProfile.contact && (
+                      <div className="inline-flex items-center gap-1 bg-white/20 backdrop-blur-md text-white text-xs px-3 py-1 rounded-full font-medium">
+                        <Icon name="link" className="w-3 h-3" /> {currentProfile.contact}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="absolute bottom-6 left-0 w-full flex justify-center gap-6 z-30 pointer-events-none">
-                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-xl pointer-events-auto"><Icon name="x" className="w-5 h-5 text-slate-400" /></button>
-                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl pointer-events-auto"><Icon name="heart" className="w-5 h-5" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, false); }} className="w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-xl hover:scale-110 transition-transform pointer-events-auto"><Icon name="x" className="w-5 h-5 text-slate-400" strokeWidth="2.5" /></button>
+                  <button onClick={(e) => { e.stopPropagation(); handleSwipe(currentProfile.uid, true); }} className="w-14 h-14 bg-red-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-red-500/30 hover:scale-110 transition-transform pointer-events-auto"><Icon name="heart" className="w-5 h-5" strokeWidth="2.5" /></button>
                 </div>
               </div>
             ) : (
-              <div className="h-[58vh] flex flex-col items-center justify-center text-slate-500 bg-white rounded-[2rem] shadow-sm">
+              <div className="h-[54vh] flex flex-col items-center justify-center text-slate-500 bg-white rounded-[2rem] shadow-sm">
                 <Icon name="search" className="w-12 h-12 mb-4 text-slate-300" />
-                <p>ค้นหาเพื่อนใหม่หมดแล้ว</p>
-                <p className="text-sm mt-2">ลองเข้ามาดูใหม่ภายหลังนะ</p>
+                <p className="font-bold text-slate-700">ค้นหาเพื่อนใหม่หมดแล้ว</p>
+                <p className="text-sm text-slate-400 mt-1">ลองเข้ามาดูใหม่ภายหลังนะเมี๊ยว~</p>
               </div>
             )}
           </div>
