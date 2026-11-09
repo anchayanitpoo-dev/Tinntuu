@@ -27,11 +27,10 @@ const db = getFirestore(app);
 const auth = getAuth(app);
 enableIndexedDbPersistence(db).catch(() => {});
 
-// --- 2. SVG Vector Cat Graphic (ถอดแบบจากรูปภาพแมวสีแดงขยิบตา) ---
+// --- 2. SVG Vector Cat Graphic ---
 const CatVectorLogo = ({ className = "w-full h-full" }) => (
   <svg viewBox="0 0 200 200" className={className} xmlns="http://www.w3.org/2000/svg">
     <defs>
-      {/* พื้นหลังไล่ระดับสี ส้ม -> แดง -> ชมพูเข้ม -> ม่วง */}
       <linearGradient id="catBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
         <stop offset="0%" stopColor="#FFA133" />
         <stop offset="35%" stopColor="#FF455B" />
@@ -39,68 +38,53 @@ const CatVectorLogo = ({ className = "w-full h-full" }) => (
         <stop offset="100%" stopColor="#6A1B9A" />
       </linearGradient>
 
-      {/* เงาละมุนใต้อองค์ประกอบ */}
       <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
         <feDropShadow dx="0" dy="4" stdDeviation="4" floodOpacity="0.12" />
       </filter>
     </defs>
     
-    {/* พื้นหลังกรอบมนสี่เหลี่ยม */}
     <rect width="200" height="200" rx="46" fill="url(#catBgGrad)" />
     
-    {/* เส้นเอฟเฟกต์ดีใจข้างหูซ้าย (\ \) */}
     <line x1="42" y1="68" x2="52" y2="55" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
     <line x1="32" y1="78" x2="44" y2="72" stroke="#FFFFFF" strokeWidth="5" strokeLinecap="round" />
 
-    {/* หูซ้าย */}
     <path d="M 64 68 C 64 36 90 32 98 62 Z" fill="#FFFFFF" />
     <path d="M 70 66 C 72 44 86 42 92 63 Z" fill="#FFCDD2" />
     
-    {/* หูขวา */}
     <path d="M 136 68 C 136 36 110 32 102 62 Z" fill="#FFFFFF" />
     <path d="M 130 66 C 128 44 114 42 108 63 Z" fill="#FFCDD2" />
     
-    {/* หัวแมวสีขาว */}
     <ellipse cx="100" cy="85" rx="42" ry="34" fill="#FFFFFF" />
     
-    {/* ตาซ้าย (ขยิบตา >) */}
     <path d="M 78 81 Q 86 90 94 81" fill="none" stroke="#4A0E2E" strokeWidth="4.5" strokeLinecap="round" />
     
-    {/* ตาขวา (ตากลมโต) */}
     <ellipse cx="120" cy="81" rx="6.5" ry="7.5" fill="#4A0E2E" />
     <circle cx="118" cy="78" r="2.2" fill="#FFFFFF" />
     
-    {/* ปากแมวยิ้มอ้าปาก */}
     <path d="M 93 90 Q 100 100 107 90 Z" fill="#FF5252" />
     <path d="M 91 89 Q 100 93 109 89" fill="none" stroke="#4A0E2E" strokeWidth="2.5" strokeLinecap="round" />
 
-    {/* หนวดแมวข้างซ้าย */}
     <line x1="56" y1="82" x2="70" y2="85" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
     <line x1="58" y1="92" x2="72" y2="90" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
     
-    {/* หนวดแมวข้างขวา */}
     <line x1="144" y1="82" x2="130" y2="85" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
     <line x1="142" y1="92" x2="128" y2="90" stroke="#4A0E2E" strokeWidth="3" strokeLinecap="round" />
 
-    {/* บอลลูนคำพูดสีขาวขนาดใหญ่ */}
     <path 
       d="M 52 120 C 44 100 156 100 148 120 C 148 145 130 152 102 152 L 68 168 L 74 150 C 52 150 52 135 52 120 Z" 
       fill="#FFFFFF" 
       filter="url(#softShadow)"
     />
     
-    {/* จุด 3 สีในบอลลูนคำพูด (ส้ม, ชมพู, ม่วง) */}
     <circle cx="80" cy="125" r="7.5" fill="#FF7043" />
     <circle cx="100" cy="125" r="7.5" fill="#E91E63" />
     <circle cx="120" cy="125" r="7.5" fill="#8E24AA" />
 
-    {/* อุ้งเท้าหน้าแมว 2 ข้างเกาะขอบบอลลูนคำพูด */}
     <ellipse cx="76" cy="106" rx="9" ry="7" fill="#FFFFFF" />
     <ellipse cx="124" cy="106" rx="9" ry="7" fill="#FFFFFF" />
   </svg>
 );
 
-// คอมโพเนนต์แสดงผลรูปโปรไฟล์ (หากผู้ใช้ยังไม่ได้อัปโหลดรูป จะใช้รูปแมวเวกเตอร์นี้เป็นรูปตั้งต้น)
 const UserAvatar = ({ src, className = "w-12 h-12", alt = "User Avatar" }) => {
   if (src && (src.startsWith('http') || src.startsWith('data:image'))) {
     return <img src={src} alt={alt} className={`${className} object-cover`} />;
@@ -138,7 +122,8 @@ const Icon = ({ name, className = "w-5 h-5", strokeWidth = "2" }) => {
     mic: <><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></>,
     image: <><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></>,
     stop: <rect x="6" y="6" width="12" height="12" rx="2"/>,
-    clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>
+    clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+    sparkles: <><path d="M12 3l1.912 5.813a2 2 0 001.275 1.275L21 12l-5.813 1.912a2 2 0 00-1.275 1.275L12 21l-1.912-5.813a2 2 0 00-1.275-1.275L3 12l5.813-1.912a2 2 0 001.275-1.275L12 3z"/></>
   };
   
   const isFilled = name === 'paw' || name === 'heart';
@@ -172,39 +157,23 @@ const triggerBrowserNotification = (title, body) => {
 };
 
 // --- 3. ระบบตอบกลับ AI อัจฉริยะ ---
-const generateCatReply = (text, vibe) => {
-  const lower = text.toLowerCase();
+const generateCatReply = (text, vibe = 'friendly') => {
+  const lower = (text || '').toLowerCase();
   
   const isGreeting = /สวัสดี|ทัก|หวัดดี|ดีครับ|ดีค่ะ|hi|hello|hey|ดีจ้า/.test(lower);
-  const isQuestion = text.includes('?') || /ไหม|อะไร|ทำไร|ไหน|ใคร|ยังไง|เท่าไหร่|จริงป่าว|ใช่มั้ย/.test(lower);
+  const isQuestion = lower.includes('?') || /ไหม|อะไร|ทำไร|ไหน|ใคร|ยังไง|เท่าไหร่|จริงป่าว|ใช่มั้ย/.test(lower);
   const isSad = /เศร้า|เหนื่อย|ท้อ|เครียด|สอบ|ตก|งานเยอะ|เสียใจ|ร้องไห้|เหงา|แย่/.test(lower);
   const isFlirting = /น่ารัก|ชอบ|แฟน|จีบ|รัก|คิดถึง|หล่อ|สวย|เต๊าะ|น่าเอ็นดู/.test(lower);
   const isFood = /หิว|ข้าว|กิน|อร่อย|ชาบู|หมูกระทะ|ของหวาน|ทาน/.test(lower);
 
   const responses = {
     friendly: {
-      greeting: ["สวัสดีเมี๊ยว! ยินดีที่ได้คุยกันน้า วันนี้เป็นไงบ้าง?", "ทักทายยามเมี๊ยว~ มีอะไรอยากเล่าให้ฟังมั้ย?", "สวัสดีฮะ! พร้อมคุยเสมอเลยน้า 🐾"],
-      question: ["เป็นคำถามที่ดีนะเมี๊ยว! เราคิดว่าค่อยๆ คิด ค่อยๆ ทำดีที่สุดเลย", "อืมม เรื่องนี้เราว่าลองทำตามที่หัวใจเรียกร้องดูมั้ยเมี๊ยว?", "ถามแบบนี้แสดงว่ากำลังสนใจเรื่องนี้อยู่แน่ๆ เลยใช่เปล่า?"],
-      sad: ["โอ๋ๆ ไม่ร้องน้าเมี๊ยว สู้ๆ! เราเป็นกำลังใจให้เสมอเลยนะ 💖", "เหนื่อยก็พักก่อนได้นะเมี๊ยว ตบไหล่เบาๆ น้า", "มากอดๆ นะเมี๊ยว วันนี้เก่งมากแล้วรู้มั้ย!"],
-      flirting: ["เขินเลยเมี๊ยว~ พูดแบบนี้บ่อยรึเปล่าเนี่ย 🥰", "งุย ยิ้มแก้มแตกแล้วนะเมี๊ยว!", "ขอบคุณน้า คุณก็น่ารักเหมือนกันเมี๊ยว"],
-      food: ["พูดเรื่องกินแล้วหิวตามเลยเมี๊ยว! ไปหาไรอร่อยๆ กินกัน!", "อย่าลืมกินข้าวให้ตรงเวลานะเมี๊ยว สุขภาพสำคัญที่สุด!"],
-      default: ["ฟังดูน่าสนใจจังเมี๊ยว! แล้วเป็นยังไงต่อเหรอ?", "จริงเหรอเมี๊ยว! เล่าให้ฟังเพิ่มอีกหน่อยสิ", "อ๋อ เข้าใจแล้วเมี๊ยว! มีอะไรอยากแชร์อีกมั้ย?"]
-    },
-    flirting: {
-      greeting: ["สวัสดีครับคนน่ารัก~ ทักมาแบบนี้มีใจรึเปล่าเมี๊ยว? 😉", "ทักทายครับคนดี รอข้อความอยู่พอดีเลยเมี๊ยว", "ฮิฮิ ทักมาแล้ว ห้ามหายไปไหนนะเมี๊ยว~"],
-      question: ["ถามอะไรไม่สำคัญหรอก แค่เธอคุยด้วยก็อารมณ์ดีแล้วเมี๊ยว 💕", "คำตอบอยู่ในใจเธอไงเมี๊ยว ลองทายดูสิ", "ถามเยอะแบบนี้ อยากรู้จักเรามากกว่านี้ใช่มั้ยล่ะเมี๊ยว?"],
-      sad: ["ใครทำเธอเศร้าเมี๊ยว! เดี๋ยวเราไปจัดการให้ หรือจะให้กอดซ่อมใจดี?", "ท้อได้แต่อย่าพึ่งถอย มาซบไหล่เราก่อนได้นะเมี๊ยว 🥺", "เสียใจได้ แต่อย่าลืมว่ายังมีเราคอยห่วงอยู่นะเมี๊ยว"],
-      flirting: ["หยอดเก่งแบบนี้ ระวังเราตกหลุมรักจริงๆ นะเมี๊ยว 🔥", "อุ้ย เต๊าะกลับไม่โกงนะเมี๊ยว น่ารักเกินไปแล้ว!", "อย่าพูดแบบนี้บ่อย เดี๋ยวเราคิดจริงนะเมี๊ยว~ 💕"],
-      food: ["กินข้าวคนเดียวมันเหงา มาทานด้วยกันมั้ยเมี๊ยว เดี๋ยวเลี้ยงเอง!", "ป้อนหน่อยสิเมี๊ยว ถ้าเธอป้อนคงอร่อยขึ้น 10 เท่า"],
-      default: ["คุยกับเธอนี่เพลินจนลืมเวลาเลยเมี๊ยว~", "พิมพ์อะไรมาก็น่ารักไปหมดเลยนะเราอ่ะ 😉", "จริงเหรอเมี๊ยว? งั้นคืนนี้ฝันถึงเราด้วยนะ!"]
-    },
-    sassy: {
-      greeting: ["ทักมามีไรป่าวเมี๊ยว? ถ้าไม่มีขนมแมวเลียอย่าเพิ่งกวนนะ (หยอกๆ)", "อ้าว สวัสดีมนุษย์ มีไรว่ามาเมี๊ยว", "ทักทายๆ มีไรให้รับใช้ปะล่ะ?"],
-      question: ["เรื่องแบบนี้คิดเองมั่งสิมนุษย์! เมี๊ยว~", "ถามจริงหรือถามเล่นเนี่ยเมี๊ยว? 🤨", "ไปกูเกิ้ลเอาสิ... เอ้ย หมายถึงเราก็ไม่แน่ใจเหมือนกันเมี๊ยว!"],
-      sad: ["ชีวิตมันก็งี้แหละเมี๊ยว สู้เขาสิ อย่าเพิ่งยอมแพ้ง่ายๆ!", "เศร้าไปก็ไม่ได้อะไร นอนสักตื่นเดี๋ยวก็ดีขึ้นเมี๊ยว", "เอาน่า มนุษย์อ่อนแอก็จริง แต่เธอก็ผ่านมันมาได้ตลอดนี่เมี๊ยว!"],
-      flirting: ["หยุดเต๊าะก่อนเมี๊ยว เขินจนขนฟูหมดแล้วเนี่ย! 🙄", "อย่ามาหยอด มุกนี้ใช้กับแมวไม่ได้ผลหรอกนะเมี๊ยว", "เหรออออ เชื่อก็บ้าแล้วเมี๊ยว มุกนี้ใช้กับใครมาบ้างเนี่ย!"],
-      food: ["หิวก็นอนเมี๊ยว! หรือไม่ก็ไปหาไรกิน อย่ามาบ่นใส่เรา!", "แบ่งเรากินด้วยดิ ไม่แบ่งถือว่าใจร้ายเมี๊ยว!"],
-      default: ["อืม แล้วไงต่อ? เล่าต่อสิเมี๊ยว ฟังอยู่นะ (หาว)", "โอเค รับทราบเมี๊ยว! แล้วตกลงจะเอายังไงต่อ?", "แปลกดีนะมนุษย์เนี่ย คุยเรื่องอะไรเนี่ยเมี๊ยว 🤔"]
+      greeting: ["สวัสดีน้า ยินดีที่ได้รู้จักครับ!", "หวัดดีจ้า วันนี้ทำไรอยู่เหรอ?", "สวัสดีครับผม ทักทายยามว่างน้า 🐾"],
+      question: ["อืมม์ เป็นคำถามที่น่าสนใจเลยนะ!", "เรื่องนี้เราว่าลองดูสถานการณ์อีกนิดน่าจะดีน้า", "ถามแบบนี้แสดงว่ากำลังคิดเรื่องนี้อยู่ใช่เปล่า?"],
+      sad: ["โอ๋ๆ สู้ๆ น้า เป็นกำลังใจให้เสมอเลย!", "พักผ่อนเยอะๆ นะครับ อย่าเครียดเกินไปน้า", "วันนี้เก่งมากแล้ว พักกินของอร่อยๆ ดีกว่า!"],
+      flirting: ["เขินเลย พูดแบบนี้บ่อยรึเปล่าเนี่ย 🥰", "งุย น่ารักจัง ขอบคุณนะครับ!", "แหม หยอดเก่งเหมือนกันนะเราเนี่ย~"],
+      food: ["พูดถึงของกินแล้วหิวเลย ไปหาไรทานกันมั้ย?", "อย่าลืมกินข้าวให้ตรงเวลานะครับ!"],
+      default: ["ฟังดูน่าสนใจจัง แล้วเป็นยังไงต่อเหรอ?", "จริงเหรอเนี่ย! เล่าให้ฟังเพิ่มอีกหน่อยสิ", "โอเคเลย เข้าใจแล้วครับ 👍"]
     }
   };
 
@@ -466,6 +435,15 @@ export default function App() {
     setDragDelta(0);
   };
 
+  // ฟังก์ชันให้ AI วิเคราะห์บทสนทนาแล้วเจนคำตอบช่วยในห้องแชท
+  const handleAiSuggestReply = () => {
+    // ดึงข้อความล่าสุดที่ไม่ใช่ของตัวเอง (ถ้าไม่มี ใช้ข้อความล่าสุดในห้อง)
+    const lastOtherMsg = [...messages].reverse().find(m => m.senderId !== user.uid) || messages[messages.length - 1];
+    const textToAnalyze = lastOtherMsg ? lastOtherMsg.text : 'ทักทาย';
+    const suggestedReply = generateCatReply(textToAnalyze, 'friendly');
+    setInputText(suggestedReply);
+  };
+
   const sendMediaMessage = async ({ text = '', imageUrl = null, audioUrl = null }) => {
     if (!currentChatId) return;
     const collectionPath = activeChatType === 'private' ? `private_chats/${currentChatId}/messages` : `group_messages/${currentChatId}/messages`;
@@ -683,7 +661,6 @@ export default function App() {
 
         <div className="w-full max-w-sm bg-white/80 backdrop-blur-xl rounded-3xl p-8 shadow-2xl z-10 border border-white">
           <div className="text-center mb-8 flex flex-col items-center">
-            {/* โลโก้เวกเตอร์รูปแมวขยิบตาแบบที่ผู้ใช้ต้องการ */}
             <div className="w-28 h-28 mb-4 shadow-xl shadow-red-500/20 border-4 border-white rounded-3xl overflow-hidden hover:scale-105 transition-transform duration-300">
               <CatVectorLogo />
             </div>
@@ -1106,7 +1083,32 @@ export default function App() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                <form onSubmit={sendMessage} className="p-3 bg-white border-t flex items-center gap-2 shrink-0">
+                {/* แถบ AI ช่วยคิดคำตอบในช่องแชท */}
+                <div className="px-3 py-2 bg-white border-t border-slate-100 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+                  <button 
+                    type="button" 
+                    onClick={handleAiSuggestReply} 
+                    className="flex items-center gap-1.5 text-xs font-bold text-white bg-gradient-to-r from-red-600 to-amber-500 px-3.5 py-1.5 rounded-full shadow-sm hover:opacity-95 transition-opacity shrink-0"
+                  >
+                    <Icon name="sparkles" className="w-4 h-4 text-white" /> ให้ AI ช่วยคิดคำตอบ 🐾
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setInputText('ทักทายครับ ยินดีที่ได้รู้จักน้า 😊')} 
+                    className="text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition-colors shrink-0"
+                  >
+                    ทักทายครับ 😊
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setInputText('ว่างอยู่พอดีเลย คุยกันได้น้า 🎉')} 
+                    className="text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-full transition-colors shrink-0"
+                  >
+                    ว่างอยู่พอดีเลย 🎉
+                  </button>
+                </div>
+
+                <form onSubmit={sendMessage} className="p-3 bg-white border-t border-slate-100 flex items-center gap-2 shrink-0">
                   <button 
                     type="button" 
                     onClick={() => chatImageInputRef.current?.click()} 
@@ -1281,7 +1283,7 @@ export default function App() {
               <p>🐾 <b>แท็บหาเพื่อน (Swipe):</b> ปัดขวาหรือกดหัวใจเพื่อ Match หากใจตรงกันจะได้แชทส่วนตัว ปัดซ้ายเพื่อข้าม</p>
               <p>📅 <b>แท็บตาราง:</b> เพิ่มกิจกรรม/ตารางเรียน ระบุวันและเวลาเพื่อช่วยจัดสรรเวลา</p>
               <p>💡 <b>แท็บซ้อมแชท:</b> แชทพูดคุยกับ AI มาสคอตแมวเหมียว สามารถเลือกอารมณ์ได้ (เป็นมิตร, หหยอดเก่ง, กวนโอ๊ย)</p>
-              <p>💬 <b>แท็บแชท:</b> ส่งรูปภาพและอัดเสียงคุยกันได้ แบ่งเป็นแชทส่วนตัว (คนที่ Match) และห้องกลุ่ม มีช่องค้นหารายชื่อเพื่อน</p>
+              <p>💬 <b>แท็บแชท:</b> มี AI ช่วยคิดคำตอบ ส่งรูปภาพและอัดเสียงคุยกันได้ แบ่งเป็นแชทส่วนตัว (คนที่ Match) และห้องกลุ่ม มีช่องค้นหารายชื่อเพื่อน</p>
               <p>👤 <b>แท็บโปรไฟล์:</b> แก้ไขข้อมูลส่วนตัว ใส่คณะ วันเกิด/อายุ ช่องทางติดต่อ ลบบัญชี และแจ้งปัญหาแอป</p>
             </div>
             <button onClick={() => setShowManual(false)} className="mt-6 w-full bg-slate-100 text-slate-700 font-semibold py-3 rounded-xl hover:bg-slate-200">
