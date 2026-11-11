@@ -437,7 +437,6 @@ export default function App() {
 
   // ฟังก์ชันให้ AI วิเคราะห์บทสนทนาแล้วเจนคำตอบช่วยในห้องแชท
   const handleAiSuggestReply = () => {
-    // ดึงข้อความล่าสุดที่ไม่ใช่ของตัวเอง (ถ้าไม่มี ใช้ข้อความล่าสุดในห้อง)
     const lastOtherMsg = [...messages].reverse().find(m => m.senderId !== user.uid) || messages[messages.length - 1];
     const textToAnalyze = lastOtherMsg ? lastOtherMsg.text : 'ทักทาย';
     const suggestedReply = generateCatReply(textToAnalyze, 'friendly');
@@ -804,66 +803,89 @@ export default function App() {
           </div>
         )}
 
-        {/* --- SCHEDULE TAB --- */}
+        {/* --- SCHEDULE TAB (ปรับปรุงดีไซน์เป็นสไตล์ Minimal Clean) --- */}
         {activeTab === 'schedule' && (
-          <div className="p-5 bg-white rounded-3xl min-h-[60vh] shadow-sm border border-slate-100">
-             <h2 className="text-2xl font-bold text-slate-800 mb-4 flex items-center gap-2">
-               <Icon name="calendar" className="text-red-500" /> ตารางกิจกรรม
-             </h2>
+          <div className="space-y-4">
+             {/* Header */}
+             <div className="flex items-center justify-between px-1">
+               <div>
+                 <h2 className="text-xl font-bold text-slate-800 tracking-tight">ตารางกิจกรรม</h2>
+                 <p className="text-xs text-slate-400">วางแผนตารางเรียนและนัดหมายของคุณ</p>
+               </div>
+               <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center text-red-500">
+                 <Icon name="calendar" className="w-5 h-5" />
+               </div>
+             </div>
 
-             <form onSubmit={handleAddEvent} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3 mb-6">
+             {/* Minimal Add Event Card */}
+             <form onSubmit={handleAddEvent} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 space-y-3">
                 <input 
                   type="text" 
-                  placeholder="ชื่อกิจกรรม / ตารางเรียน..." 
+                  placeholder="เพิ่มกิจกรรมใหม่..." 
                   value={newEvent.title} 
                   onChange={e => setNewEvent({...newEvent, title: e.target.value})} 
-                  className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
+                  className="w-full bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-red-400 transition-all placeholder:text-slate-400" 
                   required
                 />
                 <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-semibold text-slate-400 ml-1">วันที่</label>
-                    <input 
-                      type="date" 
-                      value={newEvent.date} 
-                      onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
-                      required
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-[10px] font-semibold text-slate-400 ml-1">เวลา</label>
-                    <input 
-                      type="time" 
-                      value={newEvent.time} 
-                      onChange={e => setNewEvent({...newEvent, time: e.target.value})} 
-                      className="w-full bg-white border border-slate-200 px-3 py-2 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20" 
-                      required
-                    />
-                  </div>
+                  <input 
+                    type="date" 
+                    value={newEvent.date} 
+                    onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
+                    className="flex-1 bg-slate-50 border border-slate-100 px-3 py-2.5 rounded-xl text-xs text-slate-600 focus:outline-none focus:bg-white focus:ring-1 focus:ring-red-400 transition-all" 
+                    required
+                  />
+                  <input 
+                    type="time" 
+                    value={newEvent.time} 
+                    onChange={e => setNewEvent({...newEvent, time: e.target.value})} 
+                    className="flex-1 bg-slate-50 border border-slate-100 px-3 py-2.5 rounded-xl text-xs text-slate-600 focus:outline-none focus:bg-white focus:ring-1 focus:ring-red-400 transition-all" 
+                    required
+                  />
+                  <button type="submit" className="bg-red-600 text-white px-4 rounded-xl text-sm font-semibold flex items-center justify-center hover:bg-red-700 shadow-sm transition-colors">
+                    <Icon name="plus" className="w-4 h-4" />
+                  </button>
                 </div>
-                <button type="submit" className="w-full bg-red-600 text-white text-sm font-semibold py-2.5 rounded-xl shadow-md shadow-red-500/20 hover:bg-red-700 transition-colors">
-                  เพิ่มกิจกรรม
-                </button>
              </form>
 
-             <div className="space-y-3">
+             {/* Schedule List */}
+             <div className="space-y-2.5">
                {myProfile.schedule?.map(ev => (
-                 <div key={ev.id} className="p-4 bg-slate-50 rounded-2xl flex justify-between items-center border border-slate-100 shadow-sm">
-                   <div>
-                     <h4 className="font-semibold text-slate-800 text-sm">{ev.title}</h4>
-                     <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                       {ev.date && <span className="flex items-center gap-1"><Icon name="calendar" className="w-3.5 h-3.5 text-red-500" /> {ev.date}</span>}
-                       {ev.time && <span className="flex items-center gap-1"><Icon name="clock" className="w-3.5 h-3.5 text-red-500" /> {ev.time}</span>}
+                 <div key={ev.id} className="group bg-white p-4 rounded-2xl flex items-center justify-between border border-slate-100 shadow-sm hover:border-red-100 transition-all">
+                   <div className="flex items-center gap-3.5">
+                     <div className="w-1.5 h-10 bg-red-500 rounded-full"></div>
+                     <div>
+                       <h4 className="font-bold text-slate-800 text-sm">{ev.title}</h4>
+                       <div className="flex items-center gap-2 mt-1">
+                         {ev.date && (
+                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">
+                             <Icon name="calendar" className="w-3 h-3 text-red-500" /> {ev.date}
+                           </span>
+                         )}
+                         {ev.time && (
+                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md">
+                             <Icon name="clock" className="w-3 h-3 text-red-500" /> {ev.time}
+                           </span>
+                         )}
+                       </div>
                      </div>
                    </div>
-                   <button onClick={() => handleDeleteEvent(ev.id)} className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-400 hover:text-red-500 border border-slate-100 shadow-sm transition-colors">
+                   <button 
+                     onClick={() => handleDeleteEvent(ev.id)} 
+                     className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                     title="ลบกิจกรรม"
+                   >
                      <Icon name="trash" className="w-4 h-4"/>
                    </button>
                  </div>
                ))}
                {(!myProfile.schedule || myProfile.schedule.length === 0) && (
-                 <div className="text-center text-slate-400 text-sm py-8">ยังไม่มีตารางกิจกรรม</div>
+                 <div className="bg-white rounded-2xl p-8 text-center border border-slate-100 shadow-sm">
+                   <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center text-slate-300 mx-auto mb-3">
+                     <Icon name="calendar" className="w-6 h-6" />
+                   </div>
+                   <p className="text-xs font-semibold text-slate-400">ยังไม่มีรายการตารางกิจกรรม</p>
+                 </div>
                )}
              </div>
           </div>
